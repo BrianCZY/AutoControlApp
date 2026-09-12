@@ -1,0 +1,99 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">自动化控制</string>
+
+    <!-- Home -->
+    <string name="home_title">自动化控制</string>
+    <string name="shutdown_title">定时关机</string>
+    <string name="shutdown_subtitle">到达设定时间后自动关机</string>
+    <string name="shutdown_label">启用定时关机</string>
+    <string name="shutdown_status_disabled">当前未启用</string>
+    <string name="shutdown_time_label">关机时间</string>
+    <string name="status_enabled">已启用</string>
+
+    <string name="grayscale_title">时段屏幕变灰</string>
+    <string name="grayscale_subtitle">指定时段内屏幕显示为灰度模式</string>
+    <string name="grayscale_label">启用灰度时段</string>
+    <string name="grayscale_time_summary">%1$s ~ %2$s 屏幕变灰</string>
+    <string name="grayscale_time_range_label">灰度时间段</string>
+    <string name="grayscale_to">至</string>
+    <string name="grayscale_tip">灰度模式需在辅助功能中开启颜色过滤器权限，首次使用请前往设置页授权。</string>
+
+    <string name="network_title">定时断网</string>
+    <string name="network_subtitle">指定时段内自动关闭Wi-Fi和移动数据</string>
+    <string name="network_label">启用定时断网</string>
+    <string name="network_status_disabled">当前未启用</string>
+    <string name="network_time_range_label">断网时间段</string>
+    <string name="network_time_summary_hint">自动断网</string>
+
+    <!-- Settings -->
+    <string name="settings_eyebrow">系统配置</string>
+    <string name="settings_title">权限与服务</string>
+    <string name="settings_alert_title">核心权限未完整授权</string>
+    <string name="settings_alert_subtitle">部分功能可能无法正常工作，请完成下方授权</string>
+    <string name="settings_core_label">核心权限（必须）</string>
+    <string name="settings_extra_label">附加权限（功能增强）</string>
+
+    <string name="perm_battery_title">忽略电池优化</string>
+    <string name="perm_battery_subtitle">允许应用在后台持续运行，不被系统休眠</string>
+    <string name="perm_foreground_title">前台服务权限</string>
+    <string name="perm_foreground_subtitle">在通知栏显示服务状态，防止被系统杀死</string>
+    <string name="perm_a11y_title">辅助功能服务</string>
+    <string name="perm_a11y_subtitle">屏幕灰度模式所需，用于颜色过滤器控制</string>
+    <string name="perm_notification_title">通知权限</string>
+    <string name="perm_notification_subtitle">显示定时任务提醒和服务运行状态</string>
+
+    <string name="perm_action_grant">授权</string>
+    <string name="perm_action_granted">已授权</string>
+
+    <string name="service_card_title">前台服务状态</string>
+    <string name="service_status_inactive">服务未启动</string>
+    <string name="service_status_inactive_hint">授权前台服务权限后自动启动</string>
+    <string name="service_status_running">服务运行中</string>
+    <string name="service_status_running_hint">前台通知 + 定时任务调度</string>
+    <string name="service_action_start">启动</string>
+    <string name="service_action_stop">停止</string>
+    <string name="service_meta_name_label">服务名称</string>
+    <string name="service_meta_name_value">AutoControlService</string>
+    <string name="service_meta_api_label">目标 API</string>
+    <string name="service_meta_api_value">Android 14 (API 34)</string>
+    <string name="service_meta_strategy_label">保活策略</string>
+    <string name="service_meta_strategy_value">前台通知 + AlarmManager</string>
+
+    <!-- Tabs -->
+    <string name="tab_home">首页</string>
+    <string name="tab_settings">设置</string>
+
+    <!-- Time picker -->
+    <string name="time_picker_title">选择时间</string>
+    <string name="time_picker_confirm">确定</string>
+    <string name="time_picker_cancel">取消</string>
+
+    <!-- 通知渠道 -->
+    <string name="notif_channel_service_name">自动化控制服务</string>
+    <string name="notif_channel_service_desc">前台服务运行状态与定时调度</string>
+    <string name="notif_channel_reminder_name">定时任务提醒</string>
+    <string name="notif_channel_reminder_desc">定时关机/灰度/断网任务执行提醒</string>
+    <string name="notif_service_title">自动化控制运行中</string>
+    <string name="notif_service_text">正在调度定时关机、灰度、断网任务</string>
+
+    <!-- 动作执行结果通知 -->
+    <string name="notif_shutdown_title">定时关机</string>
+    <string name="notif_grayscale_on_title">灰度模式开启</string>
+    <string name="notif_grayscale_off_title">灰度模式关闭</string>
+    <string name="notif_network_on_title">网络恢复</string>
+    <string name="notif_network_off_title">断网</string>
+
+    <string name="action_shutdown_success">设备已关机</string>
+    <string name="action_shutdown_failed">无法自动关机：普通应用无系统关机权限，请手动关机或使用 root/系统应用</string>
+    <string name="action_network_on_success">已恢复网络连接</string>
+    <string name="action_network_off_success">已关闭网络</string>
+    <string name="action_network_failed">无法自动断网：Android 10+ 禁止普通应用关闭 WiFi，请手动开启飞行模式</string>
+    <string name="action_grayscale_on_success">已开启灰度模式</string>
+    <string name="action_grayscale_off_success">已关闭灰度模式</string>
+    <string name="action_grayscale_failed">灰度模式切换失败：请确认已在辅助功能中开启本应用</string>
+
+    <!-- 辅助功能服务 -->
+    <string name="accessibility_service_label">自动化控制 · 灰度模式</string>
+    <string name="accessibility_service_description">用于在指定时段控制屏幕灰度（颜色校正），实现"时段屏幕变灰"功能。</string>
+</resources>

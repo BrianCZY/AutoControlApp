@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <color name="brand_teal">#FF2DD4BF</color>
+    <color name="brand_teal_dim">#FF14B8A6</color>
+    <color name="bg_root">#FF0B1220</color>
+    <color name="bg_card">#FF111A2E</color>
+    <color name="bg_card_stroke">#1AFFFFFF</color>
+    <color name="text_primary">#FFFFFFFF</color>
+    <color name="text_secondary">#FF8A95AC</color>
+    <color name="text_muted">#FF6B7488</color>
+    <color name="status_red">#FFEF4444</color>
+    <color name="status_red_bg">#1AEF4444</color>
+    <color name="status_green">#FF2DD4BF</color>
+    <color name="status_green_bg">#1A2DD4BF</color>
+    <color name="status_neutral_bg">#FF1F2A40</color>
+</resources>
