@@ -1,10 +1,14 @@
 *.iml
-.gradle
+.gradle/
 /local.properties
 /.idea/
 .DS_Store
-/build
+# Gradle/Android 构建产物（含 app/build、根 build、intermediates、outputs/logs 等）
+build/
 /captures
 .externalNativeBuild
 .cxx
 local.properties
+# 构建/运行日志
+*.log
+**/outputs/logs/
