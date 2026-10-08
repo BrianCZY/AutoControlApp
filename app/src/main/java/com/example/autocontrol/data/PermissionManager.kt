@@ -1,7 +1,7 @@
 package com.example.autocontrol.data
 
 import android.app.AlarmManager
-import android.app.NotificationManager
+import android.content.ActivityNotFoundException
 import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
@@ -9,19 +9,25 @@ import android.net.Uri
 import android.os.Build
 import android.os.PowerManager
 import android.provider.Settings
-import androidx.core.content.ContextCompat
+import android.util.Log
 
 /**
  * 统一权限/系统设置检查与跳转。
  * 全部为真实状态查询，替换设置页里原来的占位数据。
+ *
+ * 注意：本类持有的是 ApplicationContext，所有 startActivity 必须走 [safeStartActivity]。
  */
 class PermissionManager(private val context: Context) {
+
+    private companion object {
+        const val TAG = "PermissionManager"
+    }
 
     /** 通知权限是否已授予（Android 13+ 需要运行时申请） */
     fun isNotificationGranted(): Boolean =
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-            ContextCompat.checkSelfPermission(
-                context,
+            // minSdk 26 已 >= 23，直接用 Context#checkSelfPermission，不再依赖 androidx.core
+            context.checkSelfPermission(
                 android.Manifest.permission.POST_NOTIFICATIONS
             ) == PackageManager.PERMISSION_GRANTED
         } else {
@@ -52,40 +58,62 @@ class PermissionManager(private val context: Context) {
 
     // ---- 跳转 ----
 
+    /**
+     * 本类持有的是 ApplicationContext（非 Activity），
+     * 因此所有 startActivity 必须带 FLAG_ACTIVITY_NEW_TASK，
+     * 否则会抛 AndroidRuntimeException。
+     */
+    private fun safeStartActivity(intent: Intent, fallbackToAppSettings: Boolean = true) {
+        intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+        try {
+            context.startActivity(intent)
+        } catch (e: ActivityNotFoundException) {
+            // 某些机型没有对应的系统设置页，降级到应用详情页
+            Log.w(TAG, "设置页 ${intent.action} 不存在，降级到应用详情页", e)
+            if (fallbackToAppSettings) openAppSettings()
+        }
+    }
+
     fun openNotificationSettings() {
         val intent = Intent(Settings.ACTION_APP_NOTIFICATION_SETTINGS).apply {
             putExtra(Settings.EXTRA_APP_PACKAGE, context.packageName)
+            putExtra("app_package", context.packageName)
+            putExtra("app_uid", context.applicationInfo.uid)
         }
-        context.startActivity(intent)
+        safeStartActivity(intent)
     }
 
+    /** 精确闹钟设置页（Android 12+）。预留给定时任务授权流程使用。 */
+    @Suppress("unused")
     fun openExactAlarmSettings() {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
             val intent = Intent(Settings.ACTION_REQUEST_SCHEDULE_EXACT_ALARM).apply {
                 data = Uri.parse("package:${context.packageName}")
             }
-            context.startActivity(intent)
+            safeStartActivity(intent)
         }
     }
 
+    /** 申请加入电池优化白名单（minSdk 26 已 >= M，无需再做版本判断） */
     fun openBatteryOptimizationSettings() {
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
-            val intent = Intent(Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS).apply {
-                data = Uri.parse("package:${context.packageName}")
-            }
-            context.startActivity(intent)
+        @Suppress("BatteryLife")
+        val intent = Intent(Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS).apply {
+            data = Uri.parse("package:${context.packageName}")
         }
+        safeStartActivity(intent)
     }
 
     fun openAccessibilitySettings() {
-        context.startActivity(Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS))
+        safeStartActivity(Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS))
     }
 
     fun openAppSettings() {
-        context.startActivity(
+        // 自身就是降级终点，避免异常时递归回自己
+        safeStartActivity(
             Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS).apply {
                 data = Uri.parse("package:${context.packageName}")
-            }
+            },
+            fallbackToAppSettings = false,
         )
     }
 }
