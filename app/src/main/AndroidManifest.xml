@@ -20,6 +20,9 @@
     <!-- 精确闹钟（定时任务） -->
     <uses-permission android:name="android.permission.SCHEDULE_EXACT_ALARM" />
 
+    <!-- 灰度遮罩：在屏幕最上层绘制灰层需要此权限（可在系统设置页内直接授予，无需连接电脑） -->
+    <uses-permission android:name="android.permission.SYSTEM_ALERT_WINDOW" />
+
     <!-- 电池优化白名单（后台持续运行） -->
     <uses-permission android:name="android.permission.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS" />
 
@@ -56,6 +59,16 @@
                 android:value="定时关机/灰度/断网调度" />
         </service>
 
+        <!-- 灰度遮罩服务：在屏幕最上层绘制灰层 -->
+        <service
+            android:name=".service.GrayscaleOverlayService"
+            android:exported="false"
+            android:foregroundServiceType="specialUse">
+            <property
+                android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE"
+                android:value="屏幕灰度遮罩" />
+        </service>
+
         <!-- 开机自启，重建定时任务 -->
         <receiver
             android:name=".service.BootReceiver"
@@ -65,19 +78,5 @@
                 <action android:name="android.intent.action.MY_PACKAGE_REPLACED" />
             </intent-filter>
         </receiver>
-
-        <!-- 辅助功能服务：灰度模式依赖 -->
-        <service
-            android:name=".service.GrayscaleAccessibilityService"
-            android:exported="false"
-            android:label="@string/accessibility_service_label"
-            android:permission="android.permission.BIND_ACCESSIBILITY_SERVICE">
-            <intent-filter>
-                <action android:name="android.accessibilityservice.AccessibilityService" />
-            </intent-filter>
-            <meta-data
-                android:name="android.accessibilityservice"
-                android:resource="@xml/accessibility_service_config" />
-        </service>
     </application>
 </manifest>

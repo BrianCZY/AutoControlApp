@@ -63,11 +63,26 @@ class AutoControlService : Service() {
     }
 
     private fun handleGrayscale(on: Boolean) {
-        val result = ActionExecutor.setGrayscale(this, on)
-        notifyResult(
-            title = getString(if (on) R.string.notif_grayscale_on_title else R.string.notif_grayscale_off_title),
-            result = result
-        )
+        if (on) {
+            if (GrayscaleOverlayService.canDrawOverlays(this)) {
+                GrayscaleOverlayService.start(this)
+                notifyResult(
+                    title = getString(R.string.notif_grayscale_on_title),
+                    result = ActionExecutor.ActionResult(true, getString(R.string.action_grayscale_on_success))
+                )
+            } else {
+                notifyResult(
+                    title = getString(R.string.notif_grayscale_on_title),
+                    result = ActionExecutor.ActionResult(false, getString(R.string.overlay_not_granted))
+                )
+            }
+        } else {
+            GrayscaleOverlayService.stop(this)
+            notifyResult(
+                title = getString(R.string.notif_grayscale_off_title),
+                result = ActionExecutor.ActionResult(true, getString(R.string.action_grayscale_off_success))
+            )
+        }
     }
 
     private fun handleNetwork(on: Boolean) {

@@ -19,7 +19,7 @@ import kotlinx.coroutines.flow.asStateFlow
 data class SettingsUiState(
     val batteryStatus: PermissionStatus = PermissionStatus.NotGranted,
     val foregroundServiceStatus: PermissionStatus = PermissionStatus.Granted,
-    val accessibilityStatus: PermissionStatus = PermissionStatus.NotGranted,
+    val overlayStatus: PermissionStatus = PermissionStatus.NotGranted,
     val notificationStatus: PermissionStatus = PermissionStatus.NotGranted,
     val serviceRunning: Boolean = false,
 ) {
@@ -27,7 +27,7 @@ data class SettingsUiState(
         get() = listOf(batteryStatus, foregroundServiceStatus).count { it == PermissionStatus.Granted }
 
     val showAlert: Boolean
-        get() = coreGrantedCount < 2 || accessibilityStatus == PermissionStatus.NotGranted
+        get() = coreGrantedCount < 2 || overlayStatus == PermissionStatus.NotGranted
 }
 
 class SettingsViewModel(
@@ -48,7 +48,7 @@ class SettingsViewModel(
         _ui.value = SettingsUiState(
             batteryStatus = if (permissionManager.isIgnoringBatteryOptimizations()) PermissionStatus.Granted else PermissionStatus.NotGranted,
             foregroundServiceStatus = PermissionStatus.Granted,
-            accessibilityStatus = if (permissionManager.isAccessibilityEnabled()) PermissionStatus.Granted else PermissionStatus.NotGranted,
+            overlayStatus = if (permissionManager.canDrawOverlays()) PermissionStatus.Granted else PermissionStatus.NotGranted,
             notificationStatus = if (permissionManager.isNotificationGranted()) PermissionStatus.Granted else PermissionStatus.NotGranted,
             serviceRunning = _ui.value.serviceRunning,
         )
@@ -58,7 +58,7 @@ class SettingsViewModel(
 
     fun onRequestForegroundService() = permissionManager.openAppSettings()
 
-    fun onRequestAccessibility() = permissionManager.openAccessibilitySettings()
+    fun onRequestOverlay() = permissionManager.openOverlaySettings()
 
     fun onRequestNotification() = permissionManager.openNotificationSettings()
 

@@ -11,8 +11,8 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.outlined.AccessibilityNew
 import androidx.compose.material.icons.outlined.BatteryFull
+import androidx.compose.material.icons.outlined.Visibility
 import androidx.compose.material.icons.outlined.Notifications
 import androidx.compose.material.icons.outlined.SettingsRemote
 import androidx.compose.material.icons.outlined.WarningAmber
@@ -123,11 +123,11 @@ fun SettingsScreen(
                     label = stringResource(R.string.settings_extra_label),
                 ) {
                     PermissionRow(
-                        icon = Icons.Outlined.AccessibilityNew,
-                        title = stringResource(R.string.perm_a11y_title),
-                        subtitle = stringResource(R.string.perm_a11y_subtitle),
-                        status = state.accessibilityStatus,
-                        onClick = viewModel::onRequestAccessibility,
+                        icon = Icons.Outlined.Visibility,
+                        title = stringResource(R.string.perm_overlay_title),
+                        subtitle = stringResource(R.string.perm_overlay_subtitle),
+                        status = state.overlayStatus,
+                        onClick = viewModel::onRequestOverlay,
                     )
                     Spacer(Modifier.height(1.dp).fillMaxWidth().background(Divider))
                     PermissionRow(

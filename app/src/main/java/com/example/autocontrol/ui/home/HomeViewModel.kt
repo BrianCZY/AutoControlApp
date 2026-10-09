@@ -10,9 +10,16 @@ import com.example.autocontrol.AutoControlApplication
 import com.example.autocontrol.data.ControlState
 import com.example.autocontrol.data.PermissionManager
 import com.example.autocontrol.data.SettingsRepository
+import com.example.autocontrol.service.GrayscaleOverlayService
 import com.example.autocontrol.service.Scheduler
+import kotlinx.coroutines.channels.BufferOverflow
+import kotlinx.coroutines.flow.MutableSharedFlow
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asSharedFlow
+import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
@@ -30,6 +37,35 @@ class HomeViewModel(
         initialValue = ControlState()
     )
 
+    /**
+     * 一次性 UI 提示（Toast/Snackbar）。用带缓冲的 SharedFlow，
+     * 让“立即应用灰度”的成败（尤其权限缺失原因）能直接反馈给用户，
+     * 而不是像之前那样被直接丢弃、用户只能干等定时触发却不知为何无效。
+     */
+    private val _toast = MutableSharedFlow<String>(
+        extraBufferCapacity = 1,
+        onBufferOverflow = BufferOverflow.DROP_OLDEST,
+    )
+    val toast: SharedFlow<String> = _toast.asSharedFlow()
+
+    /**
+     * 两个权限的实时状态，供首页卡片展示并随前台刷新。
+     * - overlayGranted：悬浮窗(SYSTEM_ALERT_WINDOW)，灰度遮罩必需，可在系统设置页直接授予；
+     * - exactAlarmGranted：精确闹钟，定时灰度到点触发必需。
+     * 两者都是用户在 App 外（系统设置）授予的，因此需要“回到 App”时重新读取。
+     */
+    private val _overlayGranted = MutableStateFlow(permissionManager.canDrawOverlays())
+    val overlayGranted: StateFlow<Boolean> = _overlayGranted.asStateFlow()
+
+    private val _exactAlarmGranted = MutableStateFlow(permissionManager.isExactAlarmGranted())
+    val exactAlarmGranted: StateFlow<Boolean> = _exactAlarmGranted.asStateFlow()
+
+    /** 从 App 外返回（如系统设置授权）后调用，重新读取权限状态 */
+    fun refreshPermissions() {
+        _overlayGranted.value = permissionManager.canDrawOverlays()
+        _exactAlarmGranted.value = permissionManager.isExactAlarmGranted()
+    }
+
     fun toggleShutdown(enabled: Boolean) {
         viewModelScope.launch {
             repository.setShutdownEnabled(enabled)
@@ -40,6 +76,21 @@ class HomeViewModel(
     fun toggleGrayscale(enabled: Boolean) {
         viewModelScope.launch {
             repository.setGrayscaleEnabled(enabled)
+            // 开关切换应有即时反馈：立即启停遮罩，再按排程维护时段窗口
+            if (enabled) {
+                if (permissionManager.canDrawOverlays()) {
+                    GrayscaleOverlayService.start(application)
+                    _toast.tryEmit("已开启屏幕灰度遮罩")
+                    if (!isExactAlarmGranted()) {
+                        _toast.tryEmit("定时灰度需先在设置中授予“精确闹钟”权限，否则到点不会自动切换")
+                    }
+                } else {
+                    _toast.tryEmit("请先在系统设置中授予“显示在其他应用上层”权限")
+                }
+            } else {
+                GrayscaleOverlayService.stop(application)
+                _toast.tryEmit("已关闭屏幕灰度遮罩")
+            }
             reschedule()
         }
     }
@@ -88,11 +139,19 @@ class HomeViewModel(
 
     // ---- 权限查询（供 UI 展示真实状态） ----
 
-    fun isAccessibilityGranted(): Boolean = permissionManager.isAccessibilityEnabled()
     fun isNotificationGranted(): Boolean = permissionManager.isNotificationGranted()
     fun isExactAlarmGranted(): Boolean = permissionManager.isExactAlarmGranted()
 
+    /** 灰度遮罩必需的悬浮窗权限是否已授予 */
+    fun isOverlayGranted(): Boolean = permissionManager.canDrawOverlays()
+
     fun openAccessibilitySettings() = permissionManager.openAccessibilitySettings()
+
+    /** 跳转“显示在其他应用上层”授权设置页 */
+    fun openOverlaySettings() = permissionManager.openOverlaySettings()
+
+    /** 跳转“精确闹钟”授权设置页 */
+    fun openExactAlarmSettings() = permissionManager.openExactAlarmSettings()
 
     private suspend fun reschedule() {
         val current = repository.state.first()
