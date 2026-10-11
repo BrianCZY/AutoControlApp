@@ -5,6 +5,7 @@ import android.content.Intent
 import android.os.IBinder
 import com.example.autocontrol.AutoControlApplication
 import com.example.autocontrol.R
+import com.example.autocontrol.service.GrayscaleAccessibilityService
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -64,8 +65,8 @@ class AutoControlService : Service() {
 
     private fun handleGrayscale(on: Boolean) {
         if (on) {
-            if (GrayscaleOverlayService.canDrawOverlays(this)) {
-                GrayscaleOverlayService.start(this)
+            if (GrayscaleAccessibilityService.isEnabled(this)) {
+                GrayscaleAccessibilityService.show(this)
                 notifyResult(
                     title = getString(R.string.notif_grayscale_on_title),
                     result = ActionExecutor.ActionResult(true, getString(R.string.action_grayscale_on_success))
@@ -73,11 +74,11 @@ class AutoControlService : Service() {
             } else {
                 notifyResult(
                     title = getString(R.string.notif_grayscale_on_title),
-                    result = ActionExecutor.ActionResult(false, getString(R.string.overlay_not_granted))
+                    result = ActionExecutor.ActionResult(false, getString(R.string.accessibility_not_granted))
                 )
             }
         } else {
-            GrayscaleOverlayService.stop(this)
+            GrayscaleAccessibilityService.hide(this)
             notifyResult(
                 title = getString(R.string.notif_grayscale_off_title),
                 result = ActionExecutor.ActionResult(true, getString(R.string.action_grayscale_off_success))

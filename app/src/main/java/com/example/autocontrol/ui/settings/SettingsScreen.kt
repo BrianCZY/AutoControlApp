@@ -124,10 +124,10 @@ fun SettingsScreen(
                 ) {
                     PermissionRow(
                         icon = Icons.Outlined.Visibility,
-                        title = stringResource(R.string.perm_overlay_title),
-                        subtitle = stringResource(R.string.perm_overlay_subtitle),
-                        status = state.overlayStatus,
-                        onClick = viewModel::onRequestOverlay,
+                        title = stringResource(R.string.perm_accessibility_title),
+                        subtitle = stringResource(R.string.perm_accessibility_subtitle),
+                        status = state.accessibilityStatus,
+                        onClick = viewModel::onRequestAccessibility,
                     )
                     Spacer(Modifier.height(1.dp).fillMaxWidth().background(Divider))
                     PermissionRow(

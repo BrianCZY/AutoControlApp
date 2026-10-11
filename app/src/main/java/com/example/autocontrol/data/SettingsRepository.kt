@@ -7,8 +7,13 @@ import androidx.datastore.preferences.core.booleanPreferencesKey
 import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
-import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.flow.SharingStarted
+import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.stateIn
 import java.time.LocalTime
 
 private val Context.dataStore: DataStore<Preferences> by preferencesDataStore(name = "auto_control_prefs")
@@ -26,11 +31,15 @@ object PrefKeys {
 
 /**
  * DataStore 仓库，封装"控制设置"的持久化与读取。
- * 对外暴露 [state] (Flow) 和若干 suspend 写入方法。
+ * 对外暴露 [state] (StateFlow) 和若干 suspend 写入方法。
+ * 使用 StateFlow（而非冷 Flow）是为了让非协程场景（如无障碍服务 onServiceConnected）
+ * 能直接读取最新的灰度开关状态。
  */
 class SettingsRepository(private val context: Context) {
 
-    val state: Flow<ControlState> = context.dataStore.data.map { prefs ->
+    private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
+
+    val state: StateFlow<ControlState> = context.dataStore.data.map { prefs ->
         ControlState(
             shutdownEnabled = prefs[PrefKeys.ShutdownEnabled] ?: false,
             shutdownTime = prefs[PrefKeys.ShutdownTime]?.toLocalTimeOrNull() ?: LocalTime.of(23, 0),
@@ -41,7 +50,7 @@ class SettingsRepository(private val context: Context) {
             networkStart = prefs[PrefKeys.NetworkStart]?.toLocalTimeOrNull() ?: LocalTime.of(23, 0),
             networkEnd = prefs[PrefKeys.NetworkEnd]?.toLocalTimeOrNull() ?: LocalTime.of(7, 0),
         )
-    }
+    }.stateIn(scope, SharingStarted.Eagerly, ControlState())
 
     suspend fun setShutdownEnabled(enabled: Boolean) {
         context.dataStore.edit { it[PrefKeys.ShutdownEnabled] = enabled }

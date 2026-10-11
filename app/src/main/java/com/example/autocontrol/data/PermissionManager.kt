@@ -46,18 +46,6 @@ class PermissionManager(private val context: Context) {
     fun isIgnoringBatteryOptimizations(): Boolean =
         context.getSystemService(PowerManager::class.java)?.isIgnoringBatteryOptimizations(context.packageName) == true
 
-    /**
-     * 是否已获得“显示在其他应用上层”(SYSTEM_ALERT_WINDOW) 权限。
-     * 灰度遮罩依赖此权限才能在屏幕最上层绘制全屏灰层；
-     * 该权限可在系统设置页内直接点开授予，不必连接电脑。
-     */
-    fun canDrawOverlays(): Boolean =
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
-            Settings.canDrawOverlays(context)
-        } else {
-            true
-        }
-
     // ---- 跳转 ----
 
     /**
@@ -107,16 +95,6 @@ class PermissionManager(private val context: Context) {
 
     fun openAccessibilitySettings() {
         safeStartActivity(Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS))
-    }
-
-    /** 跳转“显示在其他应用上层”授权页（Android 6+） */
-    fun openOverlaySettings() {
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
-            val intent = Intent(Settings.ACTION_MANAGE_OVERLAY_PERMISSION).apply {
-                data = Uri.parse("package:${context.packageName}")
-            }
-            safeStartActivity(intent)
-        }
     }
 
     fun openAppSettings() {

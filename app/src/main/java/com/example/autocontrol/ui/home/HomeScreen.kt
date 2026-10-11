@@ -74,7 +74,7 @@ fun HomeScreen(
     val viewModel: HomeViewModel = viewModel(factory = HomeViewModel.factory(LocalAppContext.current))
     val state by viewModel.state.collectAsStateWithLifecycle()
     val context = LocalContext.current
-    val overlay by viewModel.overlayGranted.collectAsStateWithLifecycle()
+    val accessibility by viewModel.accessibilityGranted.collectAsStateWithLifecycle()
     val exactAlarm by viewModel.exactAlarmGranted.collectAsStateWithLifecycle()
     var pickerTarget by rememberSaveable(stateSaver = TimePickerTargetSaver) {
         mutableStateOf<TimePickerTarget?>(null)
@@ -125,7 +125,7 @@ fun HomeScreen(
             item {
                 GrayscaleCard(
                     state = state,
-                    hasOverlay = overlay,
+                    hasAccessibility = accessibility,
                     hasExactAlarm = exactAlarm,
                     onToggle = viewModel::toggleGrayscale,
                     onPickStart = {
@@ -134,7 +134,7 @@ fun HomeScreen(
                     onPickEnd = {
                         pickerTarget = TimePickerTarget.End(state.grayscaleEnd)
                     },
-                    onGrantOverlay = viewModel::openOverlaySettings,
+                    onGrantAccessibility = viewModel::openAccessibilitySettings,
                     onGrantExactAlarm = viewModel::openExactAlarmSettings,
                 )
             }
@@ -230,12 +230,12 @@ private fun ShutdownCard(
 @Composable
 private fun GrayscaleCard(
     state: ControlState,
-    hasOverlay: Boolean,
+    hasAccessibility: Boolean,
     hasExactAlarm: Boolean,
     onToggle: (Boolean) -> Unit,
     onPickStart: () -> Unit,
     onPickEnd: () -> Unit,
-    onGrantOverlay: () -> Unit,
+    onGrantAccessibility: () -> Unit,
     onGrantExactAlarm: () -> Unit,
 ) {
     ControlCard(
@@ -252,14 +252,14 @@ private fun GrayscaleCard(
             ),
             trailing = { TealSwitch(checked = state.grayscaleEnabled, onCheckedChange = onToggle) },
         )
-        // 缺少悬浮窗权限时，无论是否启用都先提示授权——否则遮罩无法绘制
-        if (!hasOverlay) {
+        // 未开启无障碍服务时，无论是否启用都先提示授权——否则灰罩无法绘制/穿透
+        if (!hasAccessibility) {
             Spacer(Modifier.height(12.dp))
             TipRow(
                 text = stringResource(R.string.grayscale_permission_tip),
                 warning = true,
-                onClick = onGrantOverlay,
-                actionText = stringResource(R.string.grayscale_grant_overlay),
+                onClick = onGrantAccessibility,
+                actionText = stringResource(R.string.grayscale_grant_accessibility),
             )
         }
         // 定时灰度依赖精确闹钟权限：未授予时 alarm 不会触发，到点不会自动切换
@@ -484,6 +484,6 @@ private fun TimePickerDialog(
 }
 
 /**
- * 灰度遮罩所需的悬浮窗权限(SYSTEM_ALERT_WINDOW)无法在 App 内直接申请，
- * 但可在系统设置页内点开授予——首页卡片与设置页均提供“前往授予”入口。
+ * 灰度遮罩依赖无障碍服务(可信浮窗)，无法在 App 内直接开启，
+ * 需在系统设置页内点开授予——首页卡片与设置页均提供“前往开启”入口（App 内跳转，无需电脑）。
  */
