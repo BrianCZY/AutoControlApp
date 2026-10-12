@@ -5,7 +5,6 @@ import android.content.Intent
 import android.os.IBinder
 import com.example.autocontrol.AutoControlApplication
 import com.example.autocontrol.R
-import com.example.autocontrol.service.GrayscaleAccessibilityService
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job

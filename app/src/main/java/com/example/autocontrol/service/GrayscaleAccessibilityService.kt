@@ -7,11 +7,11 @@ import android.content.Intent
 import android.content.IntentFilter
 import android.graphics.Color
 import android.graphics.PixelFormat
-import android.os.Build
 import android.provider.Settings
 import android.view.Gravity
 import android.view.WindowManager
 import android.widget.FrameLayout
+import androidx.core.content.ContextCompat
 import com.example.autocontrol.AutoControlApplication
 
 /**
@@ -23,7 +23,11 @@ import com.example.autocontrol.AutoControlApplication
  * 而 TYPE_ACCESSIBILITY_OVERLAY 属于“可信窗口”，触摸穿透不受该限制——这正是屏幕滤镜 /
  * 护眼类应用在 Android 12+ 的标准做法。代价：需用户在系统设置里开启本应用的无障碍服务
  * （App 内跳转，无需连接电脑）。
+ *
+ * 注：Play 策略检查会提示 AccessibilityService 的使用需符合政策（需在 Play 控制台完成无障碍声明）。
+ * 本应用用作"屏幕灰度滤镜/护眼"，不读取任何窗口内容、不绕过隐私控制，故按 id 抑制该提示。
  */
+@Suppress("AccessibilityPolicy")
 class GrayscaleAccessibilityService : AccessibilityService() {
 
     private var windowManager: WindowManager? = null
@@ -77,16 +81,19 @@ class GrayscaleAccessibilityService : AccessibilityService() {
 
     override fun onServiceConnected() {
         super.onServiceConnected()
-        windowManager = getSystemService(Context.WINDOW_SERVICE) as WindowManager
+        windowManager = getSystemService(WINDOW_SERVICE) as WindowManager
         val filter = IntentFilter().apply {
             addAction(ACTION_SHOW)
             addAction(ACTION_HIDE)
         }
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-            registerReceiver(commandReceiver, filter, Context.RECEIVER_NOT_EXPORTED)
-        } else {
-            registerReceiver(commandReceiver, filter)
-        }
+        // 广播仅应用内部收发，显式声明 NOT_EXPORTED；
+        // ContextCompat 会在 Android 13+ 传 flag、低版本自动降级，同时满足 lint 的 flag 要求。
+        ContextCompat.registerReceiver(
+            this,
+            commandReceiver,
+            filter,
+            ContextCompat.RECEIVER_NOT_EXPORTED
+        )
         // 服务被启用时，若灰度已开启则立即显示遮罩
         val app = application as? AutoControlApplication
         if (app?.settingsRepository?.state?.value?.grayscaleEnabled == true) {
@@ -119,7 +126,7 @@ class GrayscaleAccessibilityService : AccessibilityService() {
         try {
             wm.addView(view, params)
             overlayView = view
-        } catch (e: Exception) {
+        } catch (_: Exception) {
             // 理论上无障碍浮窗不会失败；若失败仅移除，不影响其他功能
             removeOverlay()
         }

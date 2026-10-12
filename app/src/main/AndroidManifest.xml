@@ -11,7 +11,11 @@
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
 
     <!-- 前台服务 -->
-    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+    <!-- 说明：FGS 类型与用途 justification 已在下方 AutoControlService 的 foregroundServiceType="specialUse"
+         与 PROPERTY_SPECIAL_USE_FGS_SUBTYPE 中声明，此处为 Play 策略提示的误报，按 id 抑制。 -->
+    <uses-permission
+        android:name="android.permission.FOREGROUND_SERVICE"
+        tools:ignore="ForegroundServicesPolicy" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_SPECIAL_USE" />
 
     <!-- 开机自启 -->
@@ -38,7 +42,6 @@
         <activity
             android:name=".MainActivity"
             android:exported="true"
-            android:label="@string/app_name"
             android:theme="@style/Theme.AutoControlApp">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
@@ -61,7 +64,8 @@
         <service
             android:name=".service.GrayscaleAccessibilityService"
             android:exported="true"
-            android:permission="android.permission.BIND_ACCESSIBILITY_SERVICE">
+            android:permission="android.permission.BIND_ACCESSIBILITY_SERVICE"
+            tools:ignore="AccessibilityPolicy">
             <intent-filter>
                 <action android:name="android.accessibilityservice.AccessibilityService" />
             </intent-filter>
