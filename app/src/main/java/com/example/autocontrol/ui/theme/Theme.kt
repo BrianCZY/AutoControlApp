@@ -31,6 +31,9 @@ private val AutoControlDarkScheme = darkColorScheme(
 )
 
 @Composable
+// statusBarColor / navigationBarColor 在 API 35 起被标记弃用（官方推荐 edge-to-edge），
+// 但这里仍需在低版本上把系统栏刷成 App 背景色，故保留调用并抑制告警。
+@Suppress("DEPRECATION")
 fun AutoControlTheme(
     @Suppress("UNUSED_PARAMETER") darkTheme: Boolean = isSystemInDarkTheme(),
     content: @Composable () -> Unit

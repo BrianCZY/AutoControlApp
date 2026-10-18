@@ -9,6 +9,8 @@ import com.example.autocontrol.AutoControlApplication
 import com.example.autocontrol.data.PermissionManager
 import com.example.autocontrol.data.SettingsRepository
 import com.example.autocontrol.service.GrayscaleAccessibilityService
+import com.example.autocontrol.service.PermissionGuide
+import com.example.autocontrol.service.PermissionTarget
 import com.example.autocontrol.ui.components.PermissionStatus
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -22,13 +24,17 @@ data class SettingsUiState(
     val foregroundServiceStatus: PermissionStatus = PermissionStatus.Granted,
     val accessibilityStatus: PermissionStatus = PermissionStatus.NotGranted,
     val notificationStatus: PermissionStatus = PermissionStatus.NotGranted,
+    val exactAlarmStatus: PermissionStatus = PermissionStatus.NotGranted,
     val serviceRunning: Boolean = false,
 ) {
     val coreGrantedCount: Int
         get() = listOf(batteryStatus, foregroundServiceStatus).count { it == PermissionStatus.Granted }
 
+    /** 缺少任一必需权限都提示：无障碍决定灰罩能否绘制，精确闹钟决定定时能否准点触发 */
     val showAlert: Boolean
-        get() = coreGrantedCount < 2 || accessibilityStatus == PermissionStatus.NotGranted
+        get() = coreGrantedCount < 2 ||
+            accessibilityStatus == PermissionStatus.NotGranted ||
+            exactAlarmStatus == PermissionStatus.NotGranted
 }
 
 class SettingsViewModel(
@@ -51,17 +57,33 @@ class SettingsViewModel(
             foregroundServiceStatus = PermissionStatus.Granted,
             accessibilityStatus = if (GrayscaleAccessibilityService.isEnabled(application)) PermissionStatus.Granted else PermissionStatus.NotGranted,
             notificationStatus = if (permissionManager.isNotificationGranted()) PermissionStatus.Granted else PermissionStatus.NotGranted,
+            exactAlarmStatus = if (permissionManager.isExactAlarmGranted()) PermissionStatus.Granted else PermissionStatus.NotGranted,
             serviceRunning = _ui.value.serviceRunning,
         )
     }
 
-    fun onRequestBattery() = permissionManager.openBatteryOptimizationSettings()
+    /** 权限的标题与步骤，供应用内“浮窗式指引卡”展示 */
+    fun guideTitle(target: PermissionTarget): String = PermissionGuide.title(application, target)
 
-    fun onRequestForegroundService() = permissionManager.openAppSettings()
+    fun guideSteps(target: PermissionTarget): String = PermissionGuide.steps(application, target)
 
-    fun onRequestAccessibility() = permissionManager.openAccessibilitySettings()
+    /**
+     * 统一的授权入口：先把指引浮窗挂到系统设置页上方（无障碍已开启时），再跳到对应系统页面。
+     * 所有权限设置都从设置页发起，首页不再保留任何授权按钮。
+     */
+    fun onRequest(target: PermissionTarget) {
+        PermissionGuide.showFloating(application, target)
+        when (target) {
+            PermissionTarget.Battery -> permissionManager.openBatteryOptimizationSettings()
+            PermissionTarget.ForegroundService -> permissionManager.openAppSettings()
+            PermissionTarget.Accessibility -> permissionManager.openAccessibilitySettings()
+            PermissionTarget.Notification -> permissionManager.openNotificationSettings()
+            PermissionTarget.ExactAlarm -> permissionManager.openExactAlarmSettings()
+        }
+    }
 
-    fun onRequestNotification() = permissionManager.openNotificationSettings()
+    /** 回到本应用后收起系统级指引浮窗 */
+    fun hideFloatingGuide() = PermissionGuide.hideFloating(application)
 
     fun onToggleService() {
         _ui.value = _ui.value.copy(serviceRunning = !_ui.value.serviceRunning)

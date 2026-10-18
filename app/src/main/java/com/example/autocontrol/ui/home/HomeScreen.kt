@@ -30,7 +30,6 @@ import androidx.compose.material3.rememberTimePickerState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.saveable.Saver
 import androidx.compose.runtime.saveable.rememberSaveable
@@ -43,9 +42,6 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import android.widget.Toast
-import androidx.lifecycle.Lifecycle
-import androidx.lifecycle.LifecycleEventObserver
-import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.example.autocontrol.R
@@ -70,24 +66,13 @@ private val DateFormatter: DateTimeFormatter = DateTimeFormatter.ofPattern("yyyy
 @Composable
 fun HomeScreen(
     contentPadding: PaddingValues = PaddingValues(0.dp),
+    onGoToSettings: () -> Unit = {},
 ) {
     val viewModel: HomeViewModel = viewModel(factory = HomeViewModel.factory(LocalAppContext.current))
     val state by viewModel.state.collectAsStateWithLifecycle()
     val context = LocalContext.current
-    val accessibility by viewModel.accessibilityGranted.collectAsStateWithLifecycle()
-    val exactAlarm by viewModel.exactAlarmGranted.collectAsStateWithLifecycle()
     var pickerTarget by rememberSaveable(stateSaver = TimePickerTargetSaver) {
         mutableStateOf<TimePickerTarget?>(null)
-    }
-
-    // 从 App 外返回（执行 adb / 系统设置授权后）重新读取权限状态，自动消除告警
-    val lifecycleOwner = LocalLifecycleOwner.current
-    DisposableEffect(lifecycleOwner) {
-        val observer = LifecycleEventObserver { _, event ->
-            if (event == Lifecycle.Event.ON_RESUME) viewModel.refreshPermissions()
-        }
-        lifecycleOwner.lifecycle.addObserver(observer)
-        onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
     }
 
     // 把灰度操作的成败（含权限缺失原因）以 Toast 形式即时反馈给用户
@@ -95,6 +80,11 @@ fun HomeScreen(
         viewModel.toast.collect { message ->
             Toast.makeText(context, message, Toast.LENGTH_LONG).show()
         }
+    }
+
+    // 权限不满足时，授权入口统一在「设置」页，这里只负责把用户带过去
+    LaunchedEffect(Unit) {
+        viewModel.openPermissionSettings.collect { onGoToSettings() }
     }
 
     Box(
@@ -125,8 +115,6 @@ fun HomeScreen(
             item {
                 GrayscaleCard(
                     state = state,
-                    hasAccessibility = accessibility,
-                    hasExactAlarm = exactAlarm,
                     onToggle = viewModel::toggleGrayscale,
                     onPickStart = {
                         pickerTarget = TimePickerTarget.Start(state.grayscaleStart)
@@ -134,8 +122,6 @@ fun HomeScreen(
                     onPickEnd = {
                         pickerTarget = TimePickerTarget.End(state.grayscaleEnd)
                     },
-                    onGrantAccessibility = viewModel::openAccessibilitySettings,
-                    onGrantExactAlarm = viewModel::openExactAlarmSettings,
                 )
             }
             item {
@@ -230,13 +216,9 @@ private fun ShutdownCard(
 @Composable
 private fun GrayscaleCard(
     state: ControlState,
-    hasAccessibility: Boolean,
-    hasExactAlarm: Boolean,
     onToggle: (Boolean) -> Unit,
     onPickStart: () -> Unit,
     onPickEnd: () -> Unit,
-    onGrantAccessibility: () -> Unit,
-    onGrantExactAlarm: () -> Unit,
 ) {
     ControlCard(
         icon = Icons.Filled.Brightness4,
@@ -252,26 +234,6 @@ private fun GrayscaleCard(
             ),
             trailing = { TealSwitch(checked = state.grayscaleEnabled, onCheckedChange = onToggle) },
         )
-        // 未开启无障碍服务时，无论是否启用都先提示授权——否则灰罩无法绘制/穿透
-        if (!hasAccessibility) {
-            Spacer(Modifier.height(12.dp))
-            TipRow(
-                text = stringResource(R.string.grayscale_permission_tip),
-                warning = true,
-                onClick = onGrantAccessibility,
-                actionText = stringResource(R.string.grayscale_grant_accessibility),
-            )
-        }
-        // 定时灰度依赖精确闹钟权限：未授予时 alarm 不会触发，到点不会自动切换
-        if (state.grayscaleEnabled && !hasExactAlarm) {
-            Spacer(Modifier.height(12.dp))
-            TipRow(
-                text = stringResource(R.string.grayscale_exact_alarm_tip),
-                warning = true,
-                onClick = onGrantExactAlarm,
-                actionText = stringResource(R.string.grayscale_grant_exact_alarm),
-            )
-        }
         if (state.grayscaleEnabled) {
             Spacer(Modifier.height(16.dp))
             Box(
@@ -484,6 +446,6 @@ private fun TimePickerDialog(
 }
 
 /**
- * 灰度遮罩依赖无障碍服务(可信浮窗)，无法在 App 内直接开启，
- * 需在系统设置页内点开授予——首页卡片与设置页均提供“前往开启”入口（App 内跳转，无需电脑）。
+ * 灰度所需的权限（无障碍服务 / 精确闹钟）统一在「设置」页授权与展示，
+ * 首页只保留开关与时段配置；缺权限时开关会置回关闭并把用户带到设置页。
  */

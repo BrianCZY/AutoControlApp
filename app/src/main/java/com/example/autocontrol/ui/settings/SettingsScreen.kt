@@ -1,50 +1,65 @@
 package com.example.autocontrol.ui.settings
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.outlined.Alarm
 import androidx.compose.material.icons.outlined.BatteryFull
-import androidx.compose.material.icons.outlined.Visibility
 import androidx.compose.material.icons.outlined.Notifications
 import androidx.compose.material.icons.outlined.SettingsRemote
+import androidx.compose.material.icons.outlined.Visibility
 import androidx.compose.material.icons.outlined.WarningAmber
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.platform.LocalLifecycleOwner
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
+import androidx.compose.ui.window.Dialog
+import androidx.compose.ui.window.DialogProperties
 import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.repeatOnLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.example.autocontrol.R
+import com.example.autocontrol.service.PermissionTarget
 import com.example.autocontrol.ui.components.InfoBanner
 import com.example.autocontrol.ui.components.InfoBannerTone
 import com.example.autocontrol.ui.components.PermissionRow
 import com.example.autocontrol.ui.components.StatusCard
 import com.example.autocontrol.ui.components.TagChip
 import com.example.autocontrol.ui.home.LocalAppContext
-import com.example.autocontrol.ui.theme.BgRoot
 import com.example.autocontrol.ui.theme.BgCard
+import com.example.autocontrol.ui.theme.BgCardElevated
+import com.example.autocontrol.ui.theme.BgRoot
+import com.example.autocontrol.ui.theme.BrandTeal
 import com.example.autocontrol.ui.theme.Divider
+import com.example.autocontrol.ui.theme.TextOnBrand
 import com.example.autocontrol.ui.theme.TextPrimary
 import com.example.autocontrol.ui.theme.TextSecondary
-import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.ui.draw.clip
 
 @Composable
 fun SettingsScreen(
@@ -54,9 +69,13 @@ fun SettingsScreen(
     val state by viewModel.ui.collectAsStateWithLifecycle()
     val lifecycleOwner = LocalLifecycleOwner.current
 
-    // 每次页面回到前台时刷新真实权限状态（用户可能刚在系统设置里完成授权）
+    // 待展示指引的权限项（非空时弹出“浮窗式”指引卡）
+    var guideTarget by remember { mutableStateOf<PermissionTarget?>(null) }
+
+    // 每次页面回到前台时收起系统级指引浮窗，并刷新真实权限状态（用户可能刚在系统设置里完成授权）
     LaunchedEffect(lifecycleOwner) {
         lifecycleOwner.repeatOnLifecycle(Lifecycle.State.RESUMED) {
+            viewModel.hideFloatingGuide()
             viewModel.refresh()
         }
     }
@@ -106,7 +125,7 @@ fun SettingsScreen(
                         title = stringResource(R.string.perm_battery_title),
                         subtitle = stringResource(R.string.perm_battery_subtitle),
                         status = state.batteryStatus,
-                        onClick = viewModel::onRequestBattery,
+                        onClick = { guideTarget = PermissionTarget.Battery },
                     )
                     Spacer(Modifier.height(1.dp).fillMaxWidth().background(Divider))
                     PermissionRow(
@@ -114,7 +133,7 @@ fun SettingsScreen(
                         title = stringResource(R.string.perm_foreground_title),
                         subtitle = stringResource(R.string.perm_foreground_subtitle),
                         status = state.foregroundServiceStatus,
-                        onClick = viewModel::onRequestForegroundService,
+                        onClick = { guideTarget = PermissionTarget.ForegroundService },
                     )
                 }
             }
@@ -127,7 +146,15 @@ fun SettingsScreen(
                         title = stringResource(R.string.perm_accessibility_title),
                         subtitle = stringResource(R.string.perm_accessibility_subtitle),
                         status = state.accessibilityStatus,
-                        onClick = viewModel::onRequestAccessibility,
+                        onClick = { guideTarget = PermissionTarget.Accessibility },
+                    )
+                    Spacer(Modifier.height(1.dp).fillMaxWidth().background(Divider))
+                    PermissionRow(
+                        icon = Icons.Outlined.Alarm,
+                        title = stringResource(R.string.perm_exact_alarm_title),
+                        subtitle = stringResource(R.string.perm_exact_alarm_subtitle),
+                        status = state.exactAlarmStatus,
+                        onClick = { guideTarget = PermissionTarget.ExactAlarm },
                     )
                     Spacer(Modifier.height(1.dp).fillMaxWidth().background(Divider))
                     PermissionRow(
@@ -135,7 +162,7 @@ fun SettingsScreen(
                         title = stringResource(R.string.perm_notification_title),
                         subtitle = stringResource(R.string.perm_notification_subtitle),
                         status = state.notificationStatus,
-                        onClick = viewModel::onRequestNotification,
+                        onClick = { guideTarget = PermissionTarget.Notification },
                     )
                 }
             }
@@ -156,6 +183,112 @@ fun SettingsScreen(
             item { Spacer(Modifier.height(20.dp)) }
         }
     }
+
+    // 权限指引浮窗：点击授权时先说明“到系统设置里点什么”，确认后再跳转
+    guideTarget?.let { target ->
+        PermissionGuideDialog(
+            title = viewModel.guideTitle(target),
+            steps = viewModel.guideSteps(target),
+            onConfirm = {
+                viewModel.onRequest(target)
+                guideTarget = null
+            },
+            onDismiss = { guideTarget = null },
+        )
+    }
+}
+
+/**
+ * “浮窗式”指引卡：半透明蒙层 + 悬浮卡片，说明系统设置内的操作步骤。
+ * 与系统级浮窗指引（无障碍服务绘制）配合使用——确认后跳到系统设置页，
+ * 若无障碍已开启，卡片会继续浮在系统页面上直到用户关闭。
+ */
+@Composable
+private fun PermissionGuideDialog(
+    title: String,
+    steps: String,
+    onConfirm: () -> Unit,
+    onDismiss: () -> Unit,
+) {
+    Dialog(
+        onDismissRequest = onDismiss,
+        properties = DialogProperties(usePlatformDefaultWidth = false),
+    ) {
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 24.dp),
+            contentAlignment = Alignment.Center,
+        ) {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(22.dp))
+                    .background(BgCardElevated)
+                    .padding(horizontal = 20.dp, vertical = 18.dp),
+            ) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text(text = "💡", style = MaterialTheme.typography.titleMedium)
+                    Spacer(Modifier.width(8.dp))
+                    Text(
+                        text = title,
+                        style = MaterialTheme.typography.titleMedium,
+                        color = TextPrimary,
+                        fontWeight = FontWeight.SemiBold,
+                    )
+                }
+                Spacer(Modifier.height(12.dp))
+                Text(
+                    text = steps,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = TextSecondary,
+                    lineHeight = 21.sp,
+                )
+                Spacer(Modifier.height(18.dp))
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(10.dp),
+                ) {
+                    GuideActionButton(
+                        text = stringResource(R.string.perm_guide_cancel),
+                        primary = false,
+                        onClick = onDismiss,
+                        modifier = Modifier.weight(1f),
+                    )
+                    GuideActionButton(
+                        text = stringResource(R.string.perm_guide_go),
+                        primary = true,
+                        onClick = onConfirm,
+                        modifier = Modifier.weight(1f),
+                    )
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun GuideActionButton(
+    text: String,
+    primary: Boolean,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    Box(
+        modifier = modifier
+            .clip(RoundedCornerShape(14.dp))
+            .background(if (primary) BrandTeal else BgCard)
+            .clickable { onClick() }
+            .padding(vertical = 12.dp),
+        contentAlignment = Alignment.Center,
+    ) {
+        Text(
+            text = text,
+            style = MaterialTheme.typography.labelLarge,
+            color = if (primary) TextOnBrand else TextSecondary,
+            fontWeight = FontWeight.SemiBold,
+        )
+    }
 }
 
 @Composable
@@ -169,11 +302,11 @@ private fun PermissionGroup(
             .clip(RoundedCornerShape(20.dp))
             .background(BgCard),
     ) {
-        androidx.compose.foundation.layout.Row(
+        Row(
             modifier = Modifier
                 .fillMaxWidth()
                 .padding(start = 18.dp, top = 14.dp, bottom = 4.dp),
-            verticalAlignment = androidx.compose.ui.Alignment.CenterVertically,
+            verticalAlignment = Alignment.CenterVertically,
         ) {
             TagChip(text = label)
         }

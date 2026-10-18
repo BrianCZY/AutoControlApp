@@ -63,7 +63,15 @@ fun AppNav(
         ) {
             composable(Routes.Home) {
                 HomeScreen(
-                    contentPadding = PaddingValues(bottom = padding.calculateBottomPadding())
+                    contentPadding = PaddingValues(bottom = padding.calculateBottomPadding()),
+                    // 首页不承载权限授权：缺权限时跳到设置页，由设置页给出指引
+                    onGoToSettings = {
+                        navController.navigate(Routes.Settings) {
+                            popUpTo(navController.graph.startDestinationId) { saveState = true }
+                            launchSingleTop = true
+                            restoreState = true
+                        }
+                    },
                 )
             }
             composable(Routes.Settings) {

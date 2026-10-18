@@ -73,8 +73,7 @@ class PermissionManager(private val context: Context) {
         safeStartActivity(intent)
     }
 
-    /** 精确闹钟设置页（Android 12+）。预留给定时任务授权流程使用。 */
-    @Suppress("unused")
+    /** 精确闹钟设置页（Android 12+），定时任务准点触发依赖此授权 */
     fun openExactAlarmSettings() {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
             val intent = Intent(Settings.ACTION_REQUEST_SCHEDULE_EXACT_ALARM).apply {

@@ -17,11 +17,7 @@
     <string name="grayscale_time_summary">%1$s ~ %2$s 屏幕变灰</string>
     <string name="grayscale_time_range_label">灰度时间段</string>
     <string name="grayscale_to">至</string>
-    <string name="grayscale_tip">灰度通过无障碍服务叠加的半透明灰罩实现（需在系统设置开启本应用的无障碍服务）。锁屏等个别界面可能覆盖不全；想立即关闭可在 App 内关闭开关。</string>
-    <string name="grayscale_permission_tip">灰度遮罩需要开启本应用的“无障碍”服务（用于绘制可穿透点击的灰罩）。当前未开启，开关不会生效。点右侧“前往开启”，在系统设置中打开本应用的无障碍开关即可。</string>
-    <string name="grayscale_grant_accessibility">前往开启</string>
-    <string name="grayscale_exact_alarm_tip">定时灰度还需要“精确闹钟”权限，否则到设定时间不会自动切换。</string>
-    <string name="grayscale_grant_exact_alarm">前往授予</string>
+    <string name="grayscale_tip">灰度通过无障碍服务叠加的半透明灰罩实现（需在「设置」页开启本应用的无障碍服务）。锁屏等个别界面可能覆盖不全；想立即关闭可在 App 内关闭开关。</string>
 
     <string name="network_title">定时断网</string>
     <string name="network_subtitle">指定时段内自动关闭Wi-Fi和移动数据</string>
@@ -40,12 +36,34 @@
 
     <string name="perm_battery_title">忽略电池优化</string>
     <string name="perm_battery_subtitle">允许应用在后台持续运行，不被系统休眠</string>
-    <string name="perm_foreground_title">前台服务权限</string>
-    <string name="perm_foreground_subtitle">在通知栏显示服务状态，防止被系统杀死</string>
+    <string name="perm_foreground_title">后台运行与自启动</string>
+    <string name="perm_foreground_subtitle">在应用信息页开启自启动与后台活动，避免服务被系统清理</string>
     <string name="perm_accessibility_title">无障碍服务（屏幕灰度）</string>
     <string name="perm_accessibility_subtitle">屏幕灰度遮罩所需，用于绘制可穿透点击的灰度层</string>
+    <string name="perm_exact_alarm_title">精确闹钟</string>
+    <string name="perm_exact_alarm_subtitle">定时灰度/关机准点触发所需，缺失时可能延迟执行</string>
     <string name="perm_notification_title">通知权限</string>
     <string name="perm_notification_subtitle">显示定时任务提醒和服务运行状态</string>
+
+    <!-- 权限指引（应用内浮窗卡 + 系统设置页上的浮窗指引） -->
+    <string name="perm_guide_go">去系统设置</string>
+    <string name="perm_guide_cancel">取消</string>
+    <string name="perm_guide_dismiss">知道了</string>
+
+    <string name="perm_guide_battery_title">开启「忽略电池优化」</string>
+    <string name="perm_guide_battery_steps">1. 系统会弹出「是否允许自动化控制在后台运行」，点「允许」\n2. 若没有弹出：进入「应用信息」→「耗电管理」\n3. 选择「允许后台活动」或「不受限制」</string>
+
+    <string name="perm_guide_foreground_title">允许后台运行与自启动</string>
+    <string name="perm_guide_foreground_steps">1. 在应用信息页确认「通知」已允许\n2. 进入「耗电管理」，关闭「智能限制后台」\n3. 进入「启动管理」，打开「自启动」与「后台活动」</string>
+
+    <string name="perm_guide_accessibility_title">开启无障碍服务</string>
+    <string name="perm_guide_accessibility_steps">1. 在列表中找到「自动化控制」（可能在「已下载的服务」里）\n2. 点开该项，打开右侧开关\n3. 弹窗中点击「允许」\n4. 若开关开启后自动弹回，回到本页重试一次</string>
+
+    <string name="perm_guide_exact_alarm_title">允许精确闹钟</string>
+    <string name="perm_guide_exact_alarm_steps">1. 在列表中找到「闹钟和提醒」\n2. 打开「允许设定精确闹钟」\n3. 返回本应用，定时任务即可准点触发</string>
+
+    <string name="perm_guide_notification_title">允许通知</string>
+    <string name="perm_guide_notification_steps">1. 打开「允许通知」总开关\n2. 建议同时打开「横幅通知」，便于看到定时执行结果\n3. 返回本应用即可生效</string>
 
     <string name="perm_action_grant">授权</string>
     <string name="perm_action_granted">已授权</string>

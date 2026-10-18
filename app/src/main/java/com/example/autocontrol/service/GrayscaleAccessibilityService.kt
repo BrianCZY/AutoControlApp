@@ -7,10 +7,15 @@ import android.content.Intent
 import android.content.IntentFilter
 import android.graphics.Color
 import android.graphics.PixelFormat
+import android.graphics.Typeface
+import android.graphics.drawable.GradientDrawable
 import android.provider.Settings
 import android.view.Gravity
+import android.view.View
 import android.view.WindowManager
 import android.widget.FrameLayout
+import android.widget.LinearLayout
+import android.widget.TextView
 import androidx.core.content.ContextCompat
 import com.example.autocontrol.AutoControlApplication
 
@@ -31,13 +36,22 @@ import com.example.autocontrol.AutoControlApplication
 class GrayscaleAccessibilityService : AccessibilityService() {
 
     private var windowManager: WindowManager? = null
-    private var overlayView: android.view.View? = null
+    private var overlayView: View? = null
+
+    /** 权限指引浮窗（小卡片，位于系统设置页之上，可点击关闭，不遮挡全屏操作） */
+    private var guideView: View? = null
 
     private val commandReceiver = object : BroadcastReceiver() {
         override fun onReceive(context: Context?, intent: Intent?) {
             when (intent?.action) {
                 ACTION_SHOW -> showOverlay()
                 ACTION_HIDE -> removeOverlay()
+                ACTION_GUIDE_SHOW -> showGuideOverlay(
+                    title = intent.getStringExtra(EXTRA_GUIDE_TITLE).orEmpty(),
+                    steps = intent.getStringExtra(EXTRA_GUIDE_STEPS).orEmpty(),
+                    dismissText = intent.getStringExtra(EXTRA_GUIDE_DISMISS).orEmpty(),
+                )
+                ACTION_GUIDE_HIDE -> removeGuideOverlay()
             }
         }
     }
@@ -46,6 +60,12 @@ class GrayscaleAccessibilityService : AccessibilityService() {
         private const val CHANNEL = "com.example.autocontrol.GRAYSCALE"
         const val ACTION_SHOW = "$CHANNEL.SHOW"
         const val ACTION_HIDE = "$CHANNEL.HIDE"
+        const val ACTION_GUIDE_SHOW = "$CHANNEL.GUIDE_SHOW"
+        const val ACTION_GUIDE_HIDE = "$CHANNEL.GUIDE_HIDE"
+
+        const val EXTRA_GUIDE_TITLE = "guide_title"
+        const val EXTRA_GUIDE_STEPS = "guide_steps"
+        const val EXTRA_GUIDE_DISMISS = "guide_dismiss"
 
         private fun componentName(context: Context): String =
             "${context.packageName}/com.example.autocontrol.service.GrayscaleAccessibilityService"
@@ -77,6 +97,26 @@ class GrayscaleAccessibilityService : AccessibilityService() {
         fun hide(context: Context) {
             context.sendBroadcast(Intent(ACTION_HIDE).setPackage(context.packageName))
         }
+
+        /**
+         * 在系统设置页之上显示“权限指引”浮窗。
+         * 指引卡片尺寸较小、可点击关闭，只占屏幕底部一条区域，不影响用户操作其余界面。
+         * 仅在无障碍服务已开启时有效（服务未开启时无窗口可依附）。
+         */
+        fun showGuide(context: Context, title: String, steps: String, dismissText: String) {
+            val intent = Intent(ACTION_GUIDE_SHOW).apply {
+                setPackage(context.packageName)
+                putExtra(EXTRA_GUIDE_TITLE, title)
+                putExtra(EXTRA_GUIDE_STEPS, steps)
+                putExtra(EXTRA_GUIDE_DISMISS, dismissText)
+            }
+            context.sendBroadcast(intent)
+        }
+
+        /** 移除权限指引浮窗（例如用户已回到本应用） */
+        fun hideGuide(context: Context) {
+            context.sendBroadcast(Intent(ACTION_GUIDE_HIDE).setPackage(context.packageName))
+        }
     }
 
     override fun onServiceConnected() {
@@ -85,6 +125,8 @@ class GrayscaleAccessibilityService : AccessibilityService() {
         val filter = IntentFilter().apply {
             addAction(ACTION_SHOW)
             addAction(ACTION_HIDE)
+            addAction(ACTION_GUIDE_SHOW)
+            addAction(ACTION_GUIDE_HIDE)
         }
         // 广播仅应用内部收发，显式声明 NOT_EXPORTED；
         // ContextCompat 会在 Android 13+ 传 flag、低版本自动降级，同时满足 lint 的 flag 要求。
@@ -137,6 +179,81 @@ class GrayscaleAccessibilityService : AccessibilityService() {
         overlayView = null
     }
 
+    /**
+     * 绘制“权限指引”小卡片浮窗。
+     *
+     * 与灰罩不同，指引卡片需要可点击（“知道了”按钮），因此不带 FLAG_NOT_TOUCHABLE；
+     * 但窗口尺寸只占屏幕底部一条（宽度=屏宽-32dp、高度包裹内容），
+     * 其余区域的触摸仍会正常落到系统设置页上，不会影响用户操作。
+     */
+    private fun showGuideOverlay(title: String, steps: String, dismissText: String) {
+        val wm = windowManager ?: return
+        removeGuideOverlay()
+        if (title.isBlank()) return
+
+        val density = resources.displayMetrics.density
+        fun dp(value: Int): Int = (value * density).toInt()
+
+        val card = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(dp(18), dp(16), dp(18), dp(12))
+            background = GradientDrawable().apply {
+                cornerRadius = dp(18).toFloat()
+                setColor(Color.parseColor("#F5152035"))
+                setStroke(dp(1), Color.parseColor("#33FFFFFF"))
+            }
+        }
+        card.addView(TextView(this).apply {
+            text = title
+            setTextColor(Color.WHITE)
+            textSize = 15f
+            setTypeface(typeface, Typeface.BOLD)
+        })
+        if (steps.isNotBlank()) {
+            card.addView(TextView(this).apply {
+                text = steps
+                setTextColor(Color.parseColor("#B9C2D0"))
+                textSize = 13f
+                setLineSpacing(dp(4).toFloat(), 1f)
+                setPadding(0, dp(8), 0, 0)
+            })
+        }
+        card.addView(TextView(this).apply {
+            text = dismissText.ifBlank { "知道了" }
+            setTextColor(Color.parseColor("#2DD4BF"))
+            textSize = 13f
+            setTypeface(typeface, Typeface.BOLD)
+            gravity = Gravity.END
+            setPadding(0, dp(10), 0, 0)
+            setOnClickListener { removeGuideOverlay() }
+        })
+
+        val screenWidth = resources.displayMetrics.widthPixels
+        val params = WindowManager.LayoutParams(
+            (screenWidth - dp(32)).coerceAtLeast(dp(220)),
+            WindowManager.LayoutParams.WRAP_CONTENT,
+            WindowManager.LayoutParams.TYPE_ACCESSIBILITY_OVERLAY,
+            // 可点击但不抢焦点：不弹输入法、不影响系统页面的正常交互
+            WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE,
+            PixelFormat.TRANSLUCENT
+        ).apply {
+            gravity = Gravity.BOTTOM or Gravity.CENTER_HORIZONTAL
+            // 抬离底部手势区，避免遮挡系统导航
+            y = dp(88)
+        }
+        try {
+            wm.addView(card, params)
+            guideView = card
+        } catch (_: Exception) {
+            removeGuideOverlay()
+        }
+    }
+
+    private fun removeGuideOverlay() {
+        guideView?.let { view -> runCatching { windowManager?.removeView(view) } }
+        guideView = null
+    }
+
     override fun onAccessibilityEvent(event: android.view.accessibility.AccessibilityEvent?) {
         // 本服务仅用于绘制灰罩，不处理无障碍事件
     }
@@ -148,6 +265,7 @@ class GrayscaleAccessibilityService : AccessibilityService() {
     override fun onDestroy() {
         runCatching { unregisterReceiver(commandReceiver) }
         removeOverlay()
+        removeGuideOverlay()
         super.onDestroy()
     }
 }
