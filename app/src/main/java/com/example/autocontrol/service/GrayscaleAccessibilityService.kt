@@ -1,22 +1,19 @@
 package com.example.autocontrol.service
 
 import android.accessibilityservice.AccessibilityService
+import android.annotation.SuppressLint
 import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
 import android.graphics.Color
 import android.graphics.PixelFormat
-import android.graphics.Typeface
-import android.graphics.drawable.GradientDrawable
+import android.os.Build
 import android.provider.Settings
 import android.view.Gravity
 import android.view.View
 import android.view.WindowManager
 import android.widget.FrameLayout
-import android.widget.LinearLayout
-import android.widget.TextView
-import androidx.core.content.ContextCompat
 import com.example.autocontrol.AutoControlApplication
 
 /**
@@ -119,6 +116,7 @@ class GrayscaleAccessibilityService : AccessibilityService() {
         }
     }
 
+    @SuppressLint("UnspecifiedRegisterReceiverFlag")
     override fun onServiceConnected() {
         super.onServiceConnected()
         windowManager = getSystemService(WINDOW_SERVICE) as WindowManager
@@ -128,14 +126,12 @@ class GrayscaleAccessibilityService : AccessibilityService() {
             addAction(ACTION_GUIDE_SHOW)
             addAction(ACTION_GUIDE_HIDE)
         }
-        // 广播仅应用内部收发，显式声明 NOT_EXPORTED；
-        // ContextCompat 会在 Android 13+ 传 flag、低版本自动降级，同时满足 lint 的 flag 要求。
-        ContextCompat.registerReceiver(
-            this,
-            commandReceiver,
-            filter,
-            ContextCompat.RECEIVER_NOT_EXPORTED
-        )
+        // 广播仅应用内部收发，显式声明 NOT_EXPORTED；Android 13 以下无该参数，走旧重载。
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            registerReceiver(commandReceiver, filter, Context.RECEIVER_NOT_EXPORTED)
+        } else {
+            registerReceiver(commandReceiver, filter)
+        }
         // 服务被启用时，若灰度已开启则立即显示遮罩
         val app = application as? AutoControlApplication
         if (app?.settingsRepository?.state?.value?.grayscaleEnabled == true) {
@@ -194,39 +190,13 @@ class GrayscaleAccessibilityService : AccessibilityService() {
         val density = resources.displayMetrics.density
         fun dp(value: Int): Int = (value * density).toInt()
 
-        val card = LinearLayout(this).apply {
-            orientation = LinearLayout.VERTICAL
-            setPadding(dp(18), dp(16), dp(18), dp(12))
-            background = GradientDrawable().apply {
-                cornerRadius = dp(18).toFloat()
-                setColor(Color.parseColor("#F5152035"))
-                setStroke(dp(1), Color.parseColor("#33FFFFFF"))
-            }
-        }
-        card.addView(TextView(this).apply {
-            text = title
-            setTextColor(Color.WHITE)
-            textSize = 15f
-            setTypeface(typeface, Typeface.BOLD)
-        })
-        if (steps.isNotBlank()) {
-            card.addView(TextView(this).apply {
-                text = steps
-                setTextColor(Color.parseColor("#B9C2D0"))
-                textSize = 13f
-                setLineSpacing(dp(4).toFloat(), 1f)
-                setPadding(0, dp(8), 0, 0)
-            })
-        }
-        card.addView(TextView(this).apply {
-            text = dismissText.ifBlank { "知道了" }
-            setTextColor(Color.parseColor("#2DD4BF"))
-            textSize = 13f
-            setTypeface(typeface, Typeface.BOLD)
-            gravity = Gravity.END
-            setPadding(0, dp(10), 0, 0)
-            setOnClickListener { removeGuideOverlay() }
-        })
+        val card = GuideCard.create(
+            context = this,
+            title = title,
+            steps = steps,
+            dismissText = dismissText,
+            onDismiss = { removeGuideOverlay() },
+        )
 
         val screenWidth = resources.displayMetrics.widthPixels
         val params = WindowManager.LayoutParams(

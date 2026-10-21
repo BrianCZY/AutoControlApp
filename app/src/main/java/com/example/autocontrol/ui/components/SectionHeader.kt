@@ -17,7 +17,7 @@ import com.example.autocontrol.ui.theme.TextSecondary
 
 /**
  * 首页「灰度时间段」一行的标题："灰度时间段" + 副文本 "22:00 ~ 07:00 屏幕变灰"。
- * 实际点击可编辑的字段由 [content] 槽位提供。
+ * 实际点击可编辑的字段由 trailing 槽位提供。
  */
 @Composable
 fun SectionHeader(

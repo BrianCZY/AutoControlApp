@@ -24,6 +24,9 @@
     <!-- 精确闹钟（定时任务） -->
     <uses-permission android:name="android.permission.SCHEDULE_EXACT_ALARM" />
 
+    <!-- 权限指引浮窗：在系统设置页上方悬浮操作步骤提示（普通悬浮窗通道，可在设置页内直接授予） -->
+    <uses-permission android:name="android.permission.SYSTEM_ALERT_WINDOW" />
+
     <!-- 电池优化白名单（后台持续运行） -->
     <uses-permission android:name="android.permission.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS" />
 

@@ -12,8 +12,12 @@ import com.example.autocontrol.service.GrayscaleAccessibilityService
 import com.example.autocontrol.service.PermissionGuide
 import com.example.autocontrol.service.PermissionTarget
 import com.example.autocontrol.ui.components.PermissionStatus
+import kotlinx.coroutines.channels.BufferOverflow
+import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.asStateFlow
 
 /**
@@ -25,6 +29,7 @@ data class SettingsUiState(
     val accessibilityStatus: PermissionStatus = PermissionStatus.NotGranted,
     val notificationStatus: PermissionStatus = PermissionStatus.NotGranted,
     val exactAlarmStatus: PermissionStatus = PermissionStatus.NotGranted,
+    val overlayStatus: PermissionStatus = PermissionStatus.NotGranted,
     val serviceRunning: Boolean = false,
 ) {
     val coreGrantedCount: Int
@@ -46,6 +51,13 @@ class SettingsViewModel(
     private val _ui = MutableStateFlow(SettingsUiState())
     val ui: StateFlow<SettingsUiState> = _ui.asStateFlow()
 
+    /** 一次性提示（例如浮窗指引不可用时的说明） */
+    private val _toast = MutableSharedFlow<String>(
+        extraBufferCapacity = 1,
+        onBufferOverflow = BufferOverflow.DROP_OLDEST,
+    )
+    val toast: SharedFlow<String> = _toast.asSharedFlow()
+
     init {
         refresh()
     }
@@ -58,6 +70,7 @@ class SettingsViewModel(
             accessibilityStatus = if (GrayscaleAccessibilityService.isEnabled(application)) PermissionStatus.Granted else PermissionStatus.NotGranted,
             notificationStatus = if (permissionManager.isNotificationGranted()) PermissionStatus.Granted else PermissionStatus.NotGranted,
             exactAlarmStatus = if (permissionManager.isExactAlarmGranted()) PermissionStatus.Granted else PermissionStatus.NotGranted,
+            overlayStatus = if (permissionManager.canDrawOverlays()) PermissionStatus.Granted else PermissionStatus.NotGranted,
             serviceRunning = _ui.value.serviceRunning,
         )
     }
@@ -72,8 +85,12 @@ class SettingsViewModel(
      * 所有权限设置都从设置页发起，首页不再保留任何授权按钮。
      */
     fun onRequest(target: PermissionTarget) {
-        PermissionGuide.showFloating(application, target)
+        val floatingShown = PermissionGuide.showFloating(application, target)
+        if (!floatingShown && target != PermissionTarget.Overlay) {
+            _toast.tryEmit("系统页上的浮窗指引需要先授予「悬浮窗」权限，可在本页对应项开启")
+        }
         when (target) {
+            PermissionTarget.Overlay -> permissionManager.openOverlaySettings()
             PermissionTarget.Battery -> permissionManager.openBatteryOptimizationSettings()
             PermissionTarget.ForegroundService -> permissionManager.openAppSettings()
             PermissionTarget.Accessibility -> permissionManager.openAccessibilitySettings()

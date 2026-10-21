@@ -34,6 +34,8 @@
     <string name="settings_core_label">核心权限（必须）</string>
     <string name="settings_extra_label">附加权限（功能增强）</string>
 
+    <string name="perm_overlay_title">悬浮窗（指引浮层）</string>
+    <string name="perm_overlay_subtitle">在系统设置页上方悬浮操作步骤提示，首次开启无障碍时尤其有用</string>
     <string name="perm_battery_title">忽略电池优化</string>
     <string name="perm_battery_subtitle">允许应用在后台持续运行，不被系统休眠</string>
     <string name="perm_foreground_title">后台运行与自启动</string>
@@ -49,6 +51,9 @@
     <string name="perm_guide_go">去系统设置</string>
     <string name="perm_guide_cancel">取消</string>
     <string name="perm_guide_dismiss">知道了</string>
+
+    <string name="perm_guide_overlay_title">允许悬浮窗</string>
+    <string name="perm_guide_overlay_steps">1. 打开「显示在其他应用上层」右侧的总开关\n2. 返回本应用即可生效\n3. 之后每次点「授权」，操作步骤都会悬浮在系统页面上，方便边看边设置</string>
 
     <string name="perm_guide_battery_title">开启「忽略电池优化」</string>
     <string name="perm_guide_battery_steps">1. 系统会弹出「是否允许自动化控制在后台运行」，点「允许」\n2. 若没有弹出：进入「应用信息」→「耗电管理」\n3. 选择「允许后台活动」或「不受限制」</string>

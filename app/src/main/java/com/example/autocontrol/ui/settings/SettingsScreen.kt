@@ -1,5 +1,6 @@
 package com.example.autocontrol.ui.settings
 
+import android.widget.Toast
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -18,6 +19,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.Alarm
 import androidx.compose.material.icons.outlined.BatteryFull
+import androidx.compose.material.icons.outlined.Layers
 import androidx.compose.material.icons.outlined.Notifications
 import androidx.compose.material.icons.outlined.SettingsRemote
 import androidx.compose.material.icons.outlined.Visibility
@@ -33,6 +35,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -71,6 +74,14 @@ fun SettingsScreen(
 
     // 待展示指引的权限项（非空时弹出“浮窗式”指引卡）
     var guideTarget by remember { mutableStateOf<PermissionTarget?>(null) }
+
+    // 浮窗指引不可用（既没开无障碍、也没给悬浮窗权限）时给出说明
+    val context = LocalContext.current
+    LaunchedEffect(Unit) {
+        viewModel.toast.collect { message ->
+            Toast.makeText(context, message, Toast.LENGTH_LONG).show()
+        }
+    }
 
     // 每次页面回到前台时收起系统级指引浮窗，并刷新真实权限状态（用户可能刚在系统设置里完成授权）
     LaunchedEffect(lifecycleOwner) {
@@ -141,6 +152,14 @@ fun SettingsScreen(
                 PermissionGroup(
                     label = stringResource(R.string.settings_extra_label),
                 ) {
+                    PermissionRow(
+                        icon = Icons.Outlined.Layers,
+                        title = stringResource(R.string.perm_overlay_title),
+                        subtitle = stringResource(R.string.perm_overlay_subtitle),
+                        status = state.overlayStatus,
+                        onClick = { guideTarget = PermissionTarget.Overlay },
+                    )
+                    Spacer(Modifier.height(1.dp).fillMaxWidth().background(Divider))
                     PermissionRow(
                         icon = Icons.Outlined.Visibility,
                         title = stringResource(R.string.perm_accessibility_title),
