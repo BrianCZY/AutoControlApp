@@ -1,8 +1,21 @@
 <?xml version="1.0" encoding="utf-8"?>
+<!--
+  灰度遮罩服务的最小化配置。
+
+  重要：本服务只负责「画一层全屏遮罩」，不需要读取任何界面内容、也不需要监听用户操作。
+  之前配置为 typeAllMask（监听所有事件）会导致系统把每个应用、每次 UI 变化都回调过来：
+    - 回调频率极高，持续占用 CPU 与电量；
+    - 部分 ROM（HarmonyOS / EMUI 等）会把高频回调的无障碍服务判定为「异常应用」，
+      进而自动关闭该无障碍服务 —— 表现就是「每次重启 App 都要重新开启无障碍」。
+  因此这里收窄到只监听窗口切换这一种必要事件，并放大节流间隔。
+
+  canRetrieveWindowContent=false：不读取界面内容（隐私最小化，也降低被系统限流的概率）。
+-->
 <accessibility-service xmlns:android="http://schemas.android.com/apk/res/android"
-    android:accessibilityEventTypes="typeAllMask"
+    android:accessibilityEventTypes="typeWindowStateChanged"
     android:accessibilityFeedbackType="feedbackGeneric"
     android:accessibilityFlags="flagDefault"
     android:canRetrieveWindowContent="false"
+    android:notificationTimeout="1000"
     android:description="@string/accessibility_service_description"
     android:summary="@string/accessibility_service_summary" />

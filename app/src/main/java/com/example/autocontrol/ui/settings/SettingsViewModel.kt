@@ -10,6 +10,7 @@ import com.example.autocontrol.AutoControlApplication
 import com.example.autocontrol.data.ControlState
 import com.example.autocontrol.data.PermissionManager
 import com.example.autocontrol.data.SettingsRepository
+import com.example.autocontrol.service.A11yDiagnostics
 import com.example.autocontrol.service.GrayscaleAccessibilityService
 import com.example.autocontrol.service.PermissionGuide
 import com.example.autocontrol.service.PermissionTarget
@@ -34,6 +35,10 @@ data class SettingsUiState(
     val exactAlarmStatus: PermissionStatus = PermissionStatus.NotGranted,
     val overlayStatus: PermissionStatus = PermissionStatus.NotGranted,
     val serviceRunning: Boolean = false,
+    /** 无障碍曾经开启过、但现在被系统关闭了（与「从未开启」区分开） */
+    val accessibilityWasRevoked: Boolean = false,
+    /** 无障碍服务最近一次生命周期事件，便于排查被关闭的原因 */
+    val accessibilityHint: String? = null,
 ) {
     val coreGrantedCount: Int
         get() = listOf(batteryStatus, foregroundServiceStatus).count { it == PermissionStatus.Granted }
@@ -70,14 +75,18 @@ class SettingsViewModel(
 
     /** 从系统重新读取真实权限状态 */
     fun refresh() {
+        val accessibilityOn = GrayscaleAccessibilityService.isEnabled(application)
         _ui.value = SettingsUiState(
             batteryStatus = if (permissionManager.isIgnoringBatteryOptimizations()) PermissionStatus.Granted else PermissionStatus.NotGranted,
             foregroundServiceStatus = PermissionStatus.Granted,
-            accessibilityStatus = if (GrayscaleAccessibilityService.isEnabled(application)) PermissionStatus.Granted else PermissionStatus.NotGranted,
+            accessibilityStatus = if (accessibilityOn) PermissionStatus.Granted else PermissionStatus.NotGranted,
             notificationStatus = if (permissionManager.isNotificationGranted()) PermissionStatus.Granted else PermissionStatus.NotGranted,
             exactAlarmStatus = if (permissionManager.isExactAlarmGranted()) PermissionStatus.Granted else PermissionStatus.NotGranted,
             overlayStatus = if (permissionManager.canDrawOverlays()) PermissionStatus.Granted else PermissionStatus.NotGranted,
             serviceRunning = _ui.value.serviceRunning,
+            // 区分两种「未开启」：从未启用过 vs 曾经启用但被系统解绑（后者需要专门提示）
+            accessibilityWasRevoked = !accessibilityOn && A11yDiagnostics.everConnected(application),
+            accessibilityHint = A11yDiagnostics.summary(application),
         )
     }
 

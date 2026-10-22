@@ -1,8 +1,10 @@
 package com.example.autocontrol.service
 
 import android.accessibilityservice.AccessibilityService
+import android.accessibilityservice.AccessibilityServiceInfo
 import android.annotation.SuppressLint
 import android.content.BroadcastReceiver
+import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
@@ -10,9 +12,12 @@ import android.graphics.Color
 import android.graphics.PixelFormat
 import android.os.Build
 import android.provider.Settings
+import android.util.Log
 import android.view.Gravity
 import android.view.View
 import android.view.WindowManager
+import android.view.accessibility.AccessibilityEvent
+import android.view.accessibility.AccessibilityManager
 import android.widget.FrameLayout
 import com.example.autocontrol.AutoControlApplication
 import com.example.autocontrol.data.ControlState
@@ -36,29 +41,37 @@ class GrayscaleAccessibilityService : AccessibilityService() {
     private var windowManager: WindowManager? = null
     private var overlayView: View? = null
 
+    /** 广播是否已注册：onServiceConnected 可能被多次回调，避免重复注册 */
+    private var receiverRegistered = false
+
     /** 权限指引浮窗（小卡片，位于系统设置页之上，可点击关闭，不遮挡全屏操作） */
     private var guideView: View? = null
 
     private val commandReceiver = object : BroadcastReceiver() {
         override fun onReceive(context: Context?, intent: Intent?) {
-            when (intent?.action) {
-                ACTION_SHOW -> showOverlay()
-                ACTION_HIDE -> removeOverlay()
-                ACTION_GUIDE_SHOW -> showGuideOverlay(
-                    title = intent.getStringExtra(EXTRA_GUIDE_TITLE).orEmpty(),
-                    steps = intent.getStringExtra(EXTRA_GUIDE_STEPS).orEmpty(),
-                    dismissText = intent.getStringExtra(EXTRA_GUIDE_DISMISS).orEmpty(),
-                )
-                ACTION_GUIDE_HIDE -> removeGuideOverlay()
-                ACTION_REFRESH_STYLE -> applyOverlayStyle(
-                    color = intent.getIntExtra(EXTRA_STYLE_COLOR, -1),
-                    alpha = intent.getIntExtra(EXTRA_STYLE_ALPHA, -1),
-                )
-            }
+            // 广播回调里抛异常会让整个进程崩溃（进而被系统连带关闭无障碍服务），
+            // 因此每个动作都独立兜异常，保证任何一条指令失败都不影响服务存活。
+            runCatching {
+                when (intent?.action) {
+                    ACTION_SHOW -> showOverlay()
+                    ACTION_HIDE -> removeOverlay()
+                    ACTION_GUIDE_SHOW -> showGuideOverlay(
+                        title = intent.getStringExtra(EXTRA_GUIDE_TITLE).orEmpty(),
+                        steps = intent.getStringExtra(EXTRA_GUIDE_STEPS).orEmpty(),
+                        dismissText = intent.getStringExtra(EXTRA_GUIDE_DISMISS).orEmpty(),
+                    )
+                    ACTION_GUIDE_HIDE -> removeGuideOverlay()
+                    ACTION_REFRESH_STYLE -> applyOverlayStyle(
+                        color = intent.getIntExtra(EXTRA_STYLE_COLOR, -1),
+                        alpha = intent.getIntExtra(EXTRA_STYLE_ALPHA, -1),
+                    )
+                }
+            }.onFailure { Log.e(TAG, "处理指令失败：${intent?.action}", it) }
         }
     }
 
     companion object {
+        private const val TAG = "GrayscaleA11y"
         private const val CHANNEL = "com.example.autocontrol.GRAYSCALE"
         const val ACTION_SHOW = "$CHANNEL.SHOW"
         const val ACTION_HIDE = "$CHANNEL.HIDE"
@@ -73,18 +86,60 @@ class GrayscaleAccessibilityService : AccessibilityService() {
         const val EXTRA_STYLE_COLOR = "style_color"
         const val EXTRA_STYLE_ALPHA = "style_alpha"
 
-        private fun componentName(context: Context): String =
-            "${context.packageName}/com.example.autocontrol.service.GrayscaleAccessibilityService"
-
-        /** 无障碍服务是否已开启（灰度遮罩依赖此才能在其他应用上层绘制并穿透点击） */
+        /**
+         * 无障碍服务是否已开启。
+         *
+         * 双重校验，避免被 ROM 的存储格式差异误导成「未开启」——
+         * 之前只解析 ENABLED_ACCESSIBILITY_SERVICES 并硬比较全类名，
+         * 而部分 ROM（含 HarmonyOS）会存成短名 `pkg/.service.Xxx`，导致明明开着却判定为关闭，
+         * 表现为「每次启动 App 都要求重新申请」。
+         *
+         * 1) 首选 AccessibilityManager：官方接口，能拿到真实解析后的组件信息；
+         * 2) 兜底解析 Secure 字符串：兼容短名与全类名两种写法。
+         */
         fun isEnabled(context: Context): Boolean {
-            val expected = componentName(context)
-            val enabled = Settings.Secure.getString(
-                context.contentResolver,
-                Settings.Secure.ENABLED_ACCESSIBILITY_SERVICES
-            ) ?: return false
-            return enabled.split(":").any { it.equals(expected, ignoreCase = true) }
+            val target = ComponentName(context, GrayscaleAccessibilityService::class.java)
+
+            // 1) AccessibilityManager
+            val am = context.getSystemService(Context.ACCESSIBILITY_SERVICE) as? AccessibilityManager
+            if (am != null) {
+                val enabled = runCatching {
+                    am.getEnabledAccessibilityServiceList(AccessibilityServiceInfo.FEEDBACK_ALL_MASK)
+                }.getOrDefault(emptyList())
+                for (info in enabled) {
+                    val si = info?.resolveInfo?.serviceInfo ?: continue
+                    if (si.packageName == target.packageName &&
+                        normalizeClassName(si.packageName, si.name) == target.className
+                    ) {
+                        return true
+                    }
+                }
+            }
+
+            // 2) Secure 字符串兜底（部分 ROM 上 AM 列表在服务刚启用时为空）
+            val raw = runCatching {
+                Settings.Secure.getString(
+                    context.contentResolver,
+                    Settings.Secure.ENABLED_ACCESSIBILITY_SERVICES
+                )
+            }.getOrNull() ?: return false
+
+            return raw.split(':').any { entry ->
+                val cn = ComponentName.unflattenFromString(entry) ?: return@any false
+                cn.packageName == target.packageName &&
+                    normalizeClassName(cn.packageName, cn.className) == target.className
+            }.also { matched ->
+                if (!matched) {
+                    // 判定为「未开启」时打出原始登记串：若这里其实包含本服务，
+                    // 说明是 ROM 的格式差异导致误判（排查「每次启动都要重新申请」的关键线索）。
+                    Log.w(TAG, "无障碍服务判定为未开启。目标=${target.flattenToString()} 登记串=$raw")
+                }
+            }
         }
+
+        /** 把短类名 `.service.Xxx` 展开成全类名，便于统一比较 */
+        private fun normalizeClassName(packageName: String, className: String): String =
+            if (className.startsWith(".")) packageName + className else className
 
         /** 打开无障碍设置页，引导用户开启本应用的无障碍服务（App 内跳转，无需电脑） */
         fun openSettings(context: Context) {
@@ -142,35 +197,75 @@ class GrayscaleAccessibilityService : AccessibilityService() {
     @SuppressLint("UnspecifiedRegisterReceiverFlag")
     override fun onServiceConnected() {
         super.onServiceConnected()
-        windowManager = getSystemService(WINDOW_SERVICE) as WindowManager
-        val filter = IntentFilter().apply {
-            addAction(ACTION_SHOW)
-            addAction(ACTION_HIDE)
-            addAction(ACTION_GUIDE_SHOW)
-            addAction(ACTION_GUIDE_HIDE)
-            addAction(ACTION_REFRESH_STYLE)
-        }
-        // 广播仅应用内部收发，显式声明 NOT_EXPORTED；Android 13 以下无该参数，走旧重载。
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-            registerReceiver(commandReceiver, filter, Context.RECEIVER_NOT_EXPORTED)
-        } else {
-            registerReceiver(commandReceiver, filter)
-        }
+        A11yDiagnostics.onConnected(this)
+
+        // 运行时再收紧一次服务配置（双保险）：
+        // 有些 ROM 会忽略 XML 里的事件类型，或沿用上次缓存的配置。
+        // 本服务只画遮罩、不需要任何界面信息，因此把事件压到最小、节流放到最大，
+        // 避免高频回调被系统判定为异常而无故关闭无障碍服务。
+        runCatching {
+            serviceInfo = (serviceInfo ?: AccessibilityServiceInfo()).apply {
+                eventTypes = AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED
+                feedbackType = AccessibilityServiceInfo.FEEDBACK_GENERIC
+                notificationTimeout = 1000L
+            }
+        }.onFailure { Log.e(TAG, "收紧无障碍服务配置失败", it) }
+
+        // 初始化全过程包 try/catch：无障碍服务一旦抛异常，系统可能直接把它标记为异常并关闭，
+        // 表现就是「每次回到 App 都要重新开启无障碍」。
+        runCatching {
+            windowManager = getSystemService(WINDOW_SERVICE) as? WindowManager
+            if (!receiverRegistered) {
+                val filter = IntentFilter().apply {
+                    addAction(ACTION_SHOW)
+                    addAction(ACTION_HIDE)
+                    addAction(ACTION_GUIDE_SHOW)
+                    addAction(ACTION_GUIDE_HIDE)
+                    addAction(ACTION_REFRESH_STYLE)
+                }
+                // 广播仅应用内部收发，显式声明 NOT_EXPORTED；Android 13 以下走旧重载。
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                    registerReceiver(commandReceiver, filter, Context.RECEIVER_NOT_EXPORTED)
+                } else {
+                    registerReceiver(commandReceiver, filter)
+                }
+                receiverRegistered = true
+            }
+        }.onFailure { Log.e(TAG, "无障碍服务初始化失败", it) }
+
         // 服务被启用/重连时按「开关 + 当前时段」决定是否显示：
         // 只有在时段内才出灰罩，避免用户一开开关就整屏变灰。
-        val app = application as? AutoControlApplication
-        val state = app?.settingsRepository?.state?.value
-        if (state != null && GrayscaleSchedule.shouldShow(state)) {
-            showOverlay()
-        } else {
-            removeOverlay()
-        }
+        runCatching {
+            val state = (application as? AutoControlApplication)
+                ?.settingsRepository?.state?.value
+            if (state != null && GrayscaleSchedule.shouldShow(state)) {
+                showOverlay()
+            } else {
+                removeOverlay()
+            }
+        }.onFailure { Log.e(TAG, "恢复灰罩状态失败", it) }
     }
 
-    override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
-        // 系统启动无障碍服务时也会回调，无需处理 action
-        return START_STICKY
+    /** 系统解绑（用户在设置里关闭、或服务被系统回收）时清理窗口与监听，避免残留 */
+    override fun onUnbind(intent: Intent?): Boolean {
+        A11yDiagnostics.onUnbind(this)
+        cleanup()
+        return super.onUnbind(intent)
     }
+
+    private fun cleanup() {
+        if (receiverRegistered) {
+            runCatching { unregisterReceiver(commandReceiver) }
+            receiverRegistered = false
+        }
+        removeOverlay()
+        removeGuideOverlay()
+    }
+
+    // 注意：不移除也不重写 onStartCommand。
+    // 无障碍服务的生命周期完全由系统管理（不是通过 startService 启动的），
+    // 之前返回 START_STICKY 属于误用，可能让系统按普通服务的方式反复重启它，
+    // 反而增加被判定异常、进而自动关闭无障碍服务的概率。
 
     private fun showOverlay() {
         if (overlayView != null) return
@@ -297,9 +392,8 @@ class GrayscaleAccessibilityService : AccessibilityService() {
     }
 
     override fun onDestroy() {
-        runCatching { unregisterReceiver(commandReceiver) }
-        removeOverlay()
-        removeGuideOverlay()
+        A11yDiagnostics.onDestroy(this)
+        cleanup()
         super.onDestroy()
     }
 }

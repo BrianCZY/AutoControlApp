@@ -59,6 +59,8 @@
     <string name="perm_foreground_subtitle">在应用信息页开启自启动与后台活动，避免服务被系统清理</string>
     <string name="perm_accessibility_title">无障碍服务（屏幕灰度）</string>
     <string name="perm_accessibility_subtitle">屏幕灰度遮罩所需，用于绘制可穿透点击的灰度层</string>
+    <string name="perm_accessibility_subtitle_off">屏幕灰度遮罩所需，用于绘制可穿透点击的灰度层</string>
+    <string name="perm_accessibility_subtitle_revoked">已被系统关闭（强制停止应用、覆盖安装或省电清理都会触发）。需重新开启，App 无法代为开启</string>
     <string name="perm_exact_alarm_title">精确闹钟</string>
     <string name="perm_exact_alarm_subtitle">定时灰度/关机准点触发所需，缺失时可能延迟执行</string>
     <string name="perm_notification_title">通知权限</string>

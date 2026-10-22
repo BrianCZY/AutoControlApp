@@ -60,6 +60,7 @@ import com.example.autocontrol.service.PermissionTarget
 import com.example.autocontrol.ui.components.InfoBanner
 import com.example.autocontrol.ui.components.InfoBannerTone
 import com.example.autocontrol.ui.components.PermissionRow
+import com.example.autocontrol.ui.components.PermissionStatus
 import com.example.autocontrol.ui.components.StatusCard
 import com.example.autocontrol.ui.components.TagChip
 import com.example.autocontrol.ui.home.LocalAppContext
@@ -184,10 +185,31 @@ fun SettingsScreen(
                     PermissionRow(
                         icon = Icons.Outlined.Visibility,
                         title = stringResource(R.string.perm_accessibility_title),
-                        subtitle = stringResource(R.string.perm_accessibility_subtitle),
+                        subtitle = when {
+                            state.accessibilityStatus == PermissionStatus.Granted ->
+                                stringResource(R.string.perm_accessibility_subtitle)
+                            // 曾被系统关闭：给出明确原因，避免误以为是 App 在反复索要权限
+                            state.accessibilityWasRevoked ->
+                                stringResource(R.string.perm_accessibility_subtitle_revoked)
+                            else ->
+                                stringResource(R.string.perm_accessibility_subtitle_off)
+                        },
                         status = state.accessibilityStatus,
                         onClick = { guideTarget = PermissionTarget.Accessibility },
                     )
+                    // 被系统关闭时附上最近一次生命周期记录，便于确认是解绑还是崩溃
+                    val revokedHint = state.accessibilityHint
+                    if (state.accessibilityStatus != PermissionStatus.Granted &&
+                        state.accessibilityWasRevoked &&
+                        revokedHint != null
+                    ) {
+                        Text(
+                            text = revokedHint,
+                            style = MaterialTheme.typography.bodySmall,
+                            color = TextSecondary,
+                            modifier = Modifier.padding(start = 60.dp, bottom = 10.dp),
+                        )
+                    }
                     Spacer(Modifier.height(1.dp).fillMaxWidth().background(Divider))
                     PermissionRow(
                         icon = Icons.Outlined.Alarm,
