@@ -5,6 +5,7 @@ import androidx.datastore.core.DataStore
 import androidx.datastore.preferences.core.Preferences
 import androidx.datastore.preferences.core.booleanPreferencesKey
 import androidx.datastore.preferences.core.edit
+import androidx.datastore.preferences.core.intPreferencesKey
 import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
 import kotlinx.coroutines.CoroutineScope
@@ -24,6 +25,8 @@ object PrefKeys {
     val GrayscaleEnabled = booleanPreferencesKey("grayscale_enabled")
     val GrayscaleStart = stringPreferencesKey("grayscale_start") // "HH:mm"
     val GrayscaleEnd = stringPreferencesKey("grayscale_end")
+    val GrayscaleColor = intPreferencesKey("grayscale_color") // 0xRRGGBB
+    val GrayscaleAlpha = intPreferencesKey("grayscale_alpha") // 0..255
     val NetworkEnabled = booleanPreferencesKey("network_enabled")
     val NetworkStart = stringPreferencesKey("network_start")
     val NetworkEnd = stringPreferencesKey("network_end")
@@ -46,6 +49,8 @@ class SettingsRepository(private val context: Context) {
             grayscaleEnabled = prefs[PrefKeys.GrayscaleEnabled] ?: true,
             grayscaleStart = prefs[PrefKeys.GrayscaleStart]?.toLocalTimeOrNull() ?: LocalTime.of(22, 0),
             grayscaleEnd = prefs[PrefKeys.GrayscaleEnd]?.toLocalTimeOrNull() ?: LocalTime.of(7, 0),
+            grayscaleColor = prefs[PrefKeys.GrayscaleColor] ?: ControlState.DEFAULT_GRAYSCALE_COLOR,
+            grayscaleAlpha = prefs[PrefKeys.GrayscaleAlpha] ?: ControlState.DEFAULT_GRAYSCALE_ALPHA,
             networkEnabled = prefs[PrefKeys.NetworkEnabled] ?: false,
             networkStart = prefs[PrefKeys.NetworkStart]?.toLocalTimeOrNull() ?: LocalTime.of(23, 0),
             networkEnd = prefs[PrefKeys.NetworkEnd]?.toLocalTimeOrNull() ?: LocalTime.of(7, 0),
@@ -70,6 +75,21 @@ class SettingsRepository(private val context: Context) {
 
     suspend fun setGrayscaleEnd(time: LocalTime) {
         context.dataStore.edit { it[PrefKeys.GrayscaleEnd] = time.toHhmm() }
+    }
+
+    /** 灰罩颜色（0xRRGGBB） */
+    suspend fun setGrayscaleColor(rgb: Int) {
+        context.dataStore.edit { it[PrefKeys.GrayscaleColor] = rgb and 0xFFFFFF }
+    }
+
+    /** 灰罩浓度（0..255） */
+    suspend fun setGrayscaleAlpha(alpha: Int) {
+        context.dataStore.edit {
+            it[PrefKeys.GrayscaleAlpha] = alpha.coerceIn(
+                ControlState.MIN_GRAYSCALE_ALPHA,
+                ControlState.MAX_GRAYSCALE_ALPHA,
+            )
+        }
     }
 
     suspend fun setNetworkEnabled(enabled: Boolean) {

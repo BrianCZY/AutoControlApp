@@ -15,6 +15,7 @@ import android.view.View
 import android.view.WindowManager
 import android.widget.FrameLayout
 import com.example.autocontrol.AutoControlApplication
+import com.example.autocontrol.data.ControlState
 
 /**
  * 灰度遮罩的无障碍服务。
@@ -49,6 +50,10 @@ class GrayscaleAccessibilityService : AccessibilityService() {
                     dismissText = intent.getStringExtra(EXTRA_GUIDE_DISMISS).orEmpty(),
                 )
                 ACTION_GUIDE_HIDE -> removeGuideOverlay()
+                ACTION_REFRESH_STYLE -> applyOverlayStyle(
+                    color = intent.getIntExtra(EXTRA_STYLE_COLOR, -1),
+                    alpha = intent.getIntExtra(EXTRA_STYLE_ALPHA, -1),
+                )
             }
         }
     }
@@ -59,10 +64,14 @@ class GrayscaleAccessibilityService : AccessibilityService() {
         const val ACTION_HIDE = "$CHANNEL.HIDE"
         const val ACTION_GUIDE_SHOW = "$CHANNEL.GUIDE_SHOW"
         const val ACTION_GUIDE_HIDE = "$CHANNEL.GUIDE_HIDE"
+        const val ACTION_REFRESH_STYLE = "$CHANNEL.REFRESH_STYLE"
 
         const val EXTRA_GUIDE_TITLE = "guide_title"
         const val EXTRA_GUIDE_STEPS = "guide_steps"
         const val EXTRA_GUIDE_DISMISS = "guide_dismiss"
+
+        const val EXTRA_STYLE_COLOR = "style_color"
+        const val EXTRA_STYLE_ALPHA = "style_alpha"
 
         private fun componentName(context: Context): String =
             "${context.packageName}/com.example.autocontrol.service.GrayscaleAccessibilityService"
@@ -114,6 +123,20 @@ class GrayscaleAccessibilityService : AccessibilityService() {
         fun hideGuide(context: Context) {
             context.sendBroadcast(Intent(ACTION_GUIDE_HIDE).setPackage(context.packageName))
         }
+
+        /**
+         * 通知正在显示的灰罩按最新配置重绘（颜色/浓度改动后调用）。
+         * 颜色与浓度直接随广播携带，避免读取 DataStore 的异步滞后导致重绘成旧值。
+         * 未显示灰罩时该广播无副作用。
+         */
+        fun refreshStyle(context: Context, rgb: Int, alpha: Int) {
+            val intent = Intent(ACTION_REFRESH_STYLE).apply {
+                setPackage(context.packageName)
+                putExtra(EXTRA_STYLE_COLOR, rgb and 0xFFFFFF)
+                putExtra(EXTRA_STYLE_ALPHA, alpha)
+            }
+            context.sendBroadcast(intent)
+        }
     }
 
     @SuppressLint("UnspecifiedRegisterReceiverFlag")
@@ -125,6 +148,7 @@ class GrayscaleAccessibilityService : AccessibilityService() {
             addAction(ACTION_HIDE)
             addAction(ACTION_GUIDE_SHOW)
             addAction(ACTION_GUIDE_HIDE)
+            addAction(ACTION_REFRESH_STYLE)
         }
         // 广播仅应用内部收发，显式声明 NOT_EXPORTED；Android 13 以下无该参数，走旧重载。
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
@@ -152,7 +176,7 @@ class GrayscaleAccessibilityService : AccessibilityService() {
         if (overlayView != null) return
         val wm = windowManager ?: return
         val view = FrameLayout(this).apply {
-            setBackgroundColor(Color.argb(140, 128, 128, 128))
+            setBackgroundColor(currentOverlayColor())
         }
         val params = WindowManager.LayoutParams(
             WindowManager.LayoutParams.MATCH_PARENT,
@@ -177,6 +201,42 @@ class GrayscaleAccessibilityService : AccessibilityService() {
     private fun removeOverlay() {
         overlayView?.let { windowManager?.removeView(it) }
         overlayView = null
+    }
+
+    /** 按当前配置（颜色 + 浓度）算出灰罩的实际 ARGB */
+    private fun currentOverlayColor(): Int {
+        val state = (application as? AutoControlApplication)?.settingsRepository?.state?.value
+            ?: return Color.argb(
+                ControlState.DEFAULT_GRAYSCALE_ALPHA,
+                0x80, 0x80, 0x80,
+            )
+        val rgb = state.grayscaleColor and 0xFFFFFF
+        return Color.argb(
+            state.grayscaleAlpha,
+            (rgb shr 16) and 0xFF,
+            (rgb shr 8) and 0xFF,
+            rgb and 0xFF,
+        )
+    }
+
+    /**
+     * 用广播带来的颜色/浓度重绘正在显示的灰罩。
+     * 参数为 -1 时（理论上不会发生）退回读取当前配置。
+     */
+    private fun applyOverlayStyle(color: Int, alpha: Int) {
+        val view = overlayView as? FrameLayout ?: return
+        if (color < 0 || alpha < 0) {
+            view.setBackgroundColor(currentOverlayColor())
+            return
+        }
+        view.setBackgroundColor(
+            Color.argb(
+                alpha.coerceIn(ControlState.MIN_GRAYSCALE_ALPHA, ControlState.MAX_GRAYSCALE_ALPHA),
+                (color shr 16) and 0xFF,
+                (color shr 8) and 0xFF,
+                color and 0xFF,
+            )
+        )
     }
 
     /**

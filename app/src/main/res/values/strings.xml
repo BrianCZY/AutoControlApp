@@ -36,6 +36,21 @@
     <string name="settings_core_label">核心权限（必须）</string>
     <string name="settings_extra_label">附加权限（功能增强）</string>
 
+    <!-- 灰度显示（颜色值 / 浓度） -->
+    <string name="settings_grayscale_label">灰度显示</string>
+    <string name="grayscale_color_title">灰罩颜色</string>
+    <string name="grayscale_color_subtitle">该颜色以半透明方式叠加在屏幕上，实现去色效果</string>
+    <string name="grayscale_color_dialog_title">选择灰罩颜色</string>
+    <string name="grayscale_color_hex_label">自定义色值（#RRGGBB）</string>
+    <string name="grayscale_color_invalid">请输入 #RRGGBB 格式，例如 #808080</string>
+    <string name="grayscale_alpha_title">遮罩浓度</string>
+    <string name="grayscale_alpha_subtitle">越大去色越强、屏幕越暗；调小可保留更多细节</string>
+    <string name="grayscale_alpha_value">%1$d%%</string>
+    <string name="grayscale_preview_title">效果预览</string>
+    <string name="grayscale_preview_hint">预览为示意：实际效果是在全部界面上叠加该颜色</string>
+    <string name="action_confirm">确定</string>
+    <string name="action_cancel">取消</string>
+
     <string name="perm_overlay_title">悬浮窗（指引浮层）</string>
     <string name="perm_overlay_subtitle">在系统设置页上方悬浮操作步骤提示，首次开启无障碍时尤其有用</string>
     <string name="perm_battery_title">忽略电池优化</string>

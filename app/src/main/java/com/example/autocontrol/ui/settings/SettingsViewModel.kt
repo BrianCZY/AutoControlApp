@@ -3,9 +3,11 @@ package com.example.autocontrol.ui.settings
 import android.app.Application
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
+import androidx.lifecycle.viewModelScope
 import androidx.lifecycle.viewmodel.initializer
 import androidx.lifecycle.viewmodel.viewModelFactory
 import com.example.autocontrol.AutoControlApplication
+import com.example.autocontrol.data.ControlState
 import com.example.autocontrol.data.PermissionManager
 import com.example.autocontrol.data.SettingsRepository
 import com.example.autocontrol.service.GrayscaleAccessibilityService
@@ -19,6 +21,7 @@ import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.launch
 
 /**
  * 设置页 UI 状态，权限状态全部来自真实的系统查询。
@@ -44,12 +47,15 @@ data class SettingsUiState(
 
 class SettingsViewModel(
     private val application: Application,
-    @Suppress("unused") private val repository: SettingsRepository,
+    private val repository: SettingsRepository,
     private val permissionManager: PermissionManager,
 ) : ViewModel() {
 
     private val _ui = MutableStateFlow(SettingsUiState())
     val ui: StateFlow<SettingsUiState> = _ui.asStateFlow()
+
+    /** 灰度显示配置（颜色/浓度），供设置页实时展示 */
+    val settings: StateFlow<ControlState> = repository.state
 
     /** 一次性提示（例如浮窗指引不可用时的说明） */
     private val _toast = MutableSharedFlow<String>(
@@ -101,6 +107,32 @@ class SettingsViewModel(
 
     /** 回到本应用后收起系统级指引浮窗 */
     fun hideFloatingGuide() = PermissionGuide.hideFloating(application)
+
+    // ---- 灰度颜色值 / 浓度 ----
+
+    /** 修改灰罩颜色（0xRRGGBB），改动立即作用于正在显示的灰罩 */
+    fun setGrayscaleColor(rgb: Int) {
+        viewModelScope.launch {
+            repository.setGrayscaleColor(rgb)
+            GrayscaleAccessibilityService.refreshStyle(
+                application,
+                rgb and 0xFFFFFF,
+                repository.state.value.grayscaleAlpha,
+            )
+        }
+    }
+
+    /** 修改灰罩浓度（0..255），改动立即作用于正在显示的灰罩 */
+    fun setGrayscaleAlpha(alpha: Int) {
+        viewModelScope.launch {
+            repository.setGrayscaleAlpha(alpha)
+            GrayscaleAccessibilityService.refreshStyle(
+                application,
+                repository.state.value.grayscaleColor,
+                alpha,
+            )
+        }
+    }
 
     fun onToggleService() {
         _ui.value = _ui.value.copy(serviceRunning = !_ui.value.serviceRunning)
