@@ -132,10 +132,14 @@ class GrayscaleAccessibilityService : AccessibilityService() {
         } else {
             registerReceiver(commandReceiver, filter)
         }
-        // 服务被启用时，若灰度已开启则立即显示遮罩
+        // 服务被启用/重连时按「开关 + 当前时段」决定是否显示：
+        // 只有在时段内才出灰罩，避免用户一开开关就整屏变灰。
         val app = application as? AutoControlApplication
-        if (app?.settingsRepository?.state?.value?.grayscaleEnabled == true) {
+        val state = app?.settingsRepository?.state?.value
+        if (state != null && GrayscaleSchedule.shouldShow(state)) {
             showOverlay()
+        } else {
+            removeOverlay()
         }
     }
 

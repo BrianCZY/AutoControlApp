@@ -11,6 +11,7 @@ import com.example.autocontrol.data.ControlState
 import com.example.autocontrol.data.PermissionManager
 import com.example.autocontrol.data.SettingsRepository
 import com.example.autocontrol.service.GrayscaleAccessibilityService
+import com.example.autocontrol.service.GrayscaleSchedule
 import com.example.autocontrol.service.Scheduler
 import kotlinx.coroutines.channels.BufferOverflow
 import kotlinx.coroutines.flow.MutableSharedFlow
@@ -73,17 +74,33 @@ class HomeViewModel(
                 reschedule()
                 return@launch
             }
+
+            // 先取当前配置（时段值不受开关影响），用于判断此刻是否处在灰度时段内
+            val current = repository.state.first()
             repository.setGrayscaleEnabled(enabled)
-            // 开关切换应有即时反馈：立即启停遮罩，再按排程维护时段窗口
-            if (enabled) {
-                GrayscaleAccessibilityService.show(application)
-                _toast.tryEmit("已开启屏幕灰度遮罩")
-                if (!permissionManager.isExactAlarmGranted()) {
-                    _toast.tryEmit("定时灰度需先在「设置」页授予“精确闹钟”权限，否则到点不会自动切换")
-                }
-            } else {
+
+            if (!enabled) {
                 GrayscaleAccessibilityService.hide(application)
                 _toast.tryEmit("已关闭屏幕灰度遮罩")
+                reschedule()
+                return@launch
+            }
+
+            // 开关 = 启用该时段策略，而非立刻变灰：仅在时段内才显示，时段外等开始时刻的闹钟
+            val inWindow = GrayscaleSchedule.isInWindow(
+                LocalTime.now(),
+                current.grayscaleStart,
+                current.grayscaleEnd,
+            )
+            if (inWindow) {
+                GrayscaleAccessibilityService.show(application)
+                _toast.tryEmit("已开启屏幕灰度遮罩")
+            } else {
+                GrayscaleAccessibilityService.hide(application)
+                _toast.tryEmit("已启用灰度时段，将在 ${GrayscaleSchedule.describe(current)} 内自动变灰")
+            }
+            if (!permissionManager.isExactAlarmGranted()) {
+                _toast.tryEmit("定时灰度需先在「设置」页授予“精确闹钟”权限，否则到点不会自动切换")
             }
             reschedule()
         }
@@ -107,6 +124,8 @@ class HomeViewModel(
         viewModelScope.launch {
             repository.setGrayscaleStart(time)
             reschedule()
+            // 时段被改动后立即校正：新时段包含此刻则显示，否则收起
+            syncGrayscaleOverlay()
         }
     }
 
@@ -114,6 +133,7 @@ class HomeViewModel(
         viewModelScope.launch {
             repository.setGrayscaleEnd(time)
             reschedule()
+            syncGrayscaleOverlay()
         }
     }
 
@@ -134,6 +154,19 @@ class HomeViewModel(
     private suspend fun reschedule() {
         val current = repository.state.first()
         Scheduler.rescheduleAll(application, current)
+    }
+
+    /**
+     * 按当前时间把灰罩校正到正确状态。
+     * 供「改时段」与「回到前台」等时机调用，避免错过闹钟或改完配置后状态不一致。
+     */
+    suspend fun syncGrayscaleOverlay() {
+        GrayscaleSchedule.apply(application, repository.state.first())
+    }
+
+    /** 供 UI 层（ON_RESUME）触发的一次性校正 */
+    fun onResumeSync() {
+        viewModelScope.launch { syncGrayscaleOverlay() }
     }
 
     companion object {

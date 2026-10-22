@@ -30,7 +30,9 @@ import androidx.compose.material3.rememberTimePickerState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.Saver
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
@@ -42,10 +44,14 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import android.widget.Toast
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
+import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.example.autocontrol.R
 import com.example.autocontrol.data.ControlState
+import com.example.autocontrol.service.GrayscaleSchedule
 import com.example.autocontrol.ui.components.ControlCard
 import com.example.autocontrol.ui.components.ControlStatusRow
 import com.example.autocontrol.ui.components.TealSwitch
@@ -55,6 +61,7 @@ import com.example.autocontrol.ui.theme.BgRoot
 import com.example.autocontrol.ui.theme.Divider
 import com.example.autocontrol.ui.theme.TextPrimary
 import com.example.autocontrol.ui.theme.TextSecondary
+import kotlinx.coroutines.delay
 import java.time.LocalDate
 import java.time.LocalTime
 import java.time.format.DateTimeFormatter
@@ -87,6 +94,27 @@ fun HomeScreen(
         viewModel.openPermissionSettings.collect { onGoToSettings() }
     }
 
+    // 每次回到首页都按当前时间校正一次灰罩：
+    // 兜住「系统延迟/错过闹钟」「锁屏期间跨过开始时间」等情形。
+    val lifecycleOwner = LocalLifecycleOwner.current
+    DisposableEffect(lifecycleOwner) {
+        val observer = LifecycleEventObserver { _, event ->
+            if (event == Lifecycle.Event.ON_RESUME) viewModel.onResumeSync()
+        }
+        lifecycleOwner.lifecycle.addObserver(observer)
+        onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
+    }
+
+    // 每 30 秒刷新一次“当前时间”，用于在卡片上标注是否已进入灰度时段。
+    // 不依赖它来驱动灰罩（灰罩由闹钟+各入口校正），仅作展示，故刷新频率不必更高。
+    var now by remember { mutableStateOf(LocalTime.now()) }
+    LaunchedEffect(Unit) {
+        while (true) {
+            now = LocalTime.now()
+            delay(30_000)
+        }
+    }
+
     Box(
         modifier = Modifier
             .fillMaxSize()
@@ -115,6 +143,7 @@ fun HomeScreen(
             item {
                 GrayscaleCard(
                     state = state,
+                    now = now,
                     onToggle = viewModel::toggleGrayscale,
                     onPickStart = {
                         pickerTarget = TimePickerTarget.Start(state.grayscaleStart)
@@ -216,10 +245,13 @@ private fun ShutdownCard(
 @Composable
 private fun GrayscaleCard(
     state: ControlState,
+    now: LocalTime,
     onToggle: (Boolean) -> Unit,
     onPickStart: () -> Unit,
     onPickEnd: () -> Unit,
 ) {
+    // 当前是否正处于灰度时段内：用于状态摘要，让用户一眼看出“为什么没变灰”
+    val inWindow = GrayscaleSchedule.isInWindow(now, state.grayscaleStart, state.grayscaleEnd)
     ControlCard(
         icon = Icons.Filled.Brightness4,
         title = stringResource(R.string.grayscale_title),
@@ -227,11 +259,19 @@ private fun GrayscaleCard(
     ) {
         ControlStatusRow(
             label = stringResource(R.string.grayscale_label),
-            status = stringResource(
-                R.string.grayscale_time_summary,
-                state.grayscaleStart.format(TimeFormatter),
-                state.grayscaleEnd.format(TimeFormatter),
-            ),
+            status = if (state.grayscaleEnabled) {
+                stringResource(
+                    if (inWindow) R.string.grayscale_summary_active else R.string.grayscale_summary_waiting,
+                    state.grayscaleStart.format(TimeFormatter),
+                    state.grayscaleEnd.format(TimeFormatter),
+                )
+            } else {
+                stringResource(
+                    R.string.grayscale_time_summary,
+                    state.grayscaleStart.format(TimeFormatter),
+                    state.grayscaleEnd.format(TimeFormatter),
+                )
+            },
             trailing = { TealSwitch(checked = state.grayscaleEnabled, onCheckedChange = onToggle) },
         )
         if (state.grayscaleEnabled) {

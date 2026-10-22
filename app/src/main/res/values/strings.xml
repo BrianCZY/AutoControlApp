@@ -15,6 +15,8 @@
     <string name="grayscale_subtitle">指定时段内屏幕显示为灰度模式</string>
     <string name="grayscale_label">启用灰度时段</string>
     <string name="grayscale_time_summary">%1$s ~ %2$s 屏幕变灰</string>
+    <string name="grayscale_summary_active">%1$s ~ %2$s · 生效中</string>
+    <string name="grayscale_summary_waiting">%1$s ~ %2$s · 未到时段</string>
     <string name="grayscale_time_range_label">灰度时间段</string>
     <string name="grayscale_to">至</string>
     <string name="grayscale_tip">灰度通过无障碍服务叠加的半透明灰罩实现（需在「设置」页开启本应用的无障碍服务）。锁屏等个别界面可能覆盖不全；想立即关闭可在 App 内关闭开关。</string>
