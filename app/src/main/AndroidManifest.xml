@@ -52,15 +52,23 @@
             </intent-filter>
         </activity>
 
-        <!-- 前台服务：定时调度与动作执行 -->
+        <!-- 前台服务：定时调度与动作执行。
+             stopWithTask="false"：用户从最近任务划掉 App 时不销毁服务，
+             这是「关闭 App 后后台继续运行」的基础设置。 -->
         <service
             android:name=".service.AutoControlService"
             android:exported="false"
+            android:stopWithTask="false"
             android:foregroundServiceType="specialUse">
             <property
                 android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE"
                 android:value="定时关机/灰度/断网调度" />
         </service>
+
+        <!-- 服务心跳：每 15 分钟唤醒一次服务，防止被 ROM 杀进程后彻底失效 -->
+        <receiver
+            android:name=".service.ServiceWatchdogReceiver"
+            android:exported="false" />
 
         <!-- 灰度遮罩服务：通过无障碍浮窗(TYPE_ACCESSIBILITY_OVERLAY)在其他应用上层绘制可穿透点击的灰罩。
              需在系统设置中开启本应用的无障碍服务后才会生效（App 内跳转，无需连接电脑）。 -->

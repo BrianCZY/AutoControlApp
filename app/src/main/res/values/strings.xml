@@ -94,9 +94,12 @@
 
     <string name="service_card_title">前台服务状态</string>
     <string name="service_status_inactive">服务未启动</string>
-    <string name="service_status_inactive_hint">授权前台服务权限后自动启动</string>
+    <string name="service_status_inactive_hint">点击右侧按钮启动，启动后关闭应用仍会继续运行</string>
     <string name="service_status_running">服务运行中</string>
-    <string name="service_status_running_hint">前台通知 + 定时任务调度</string>
+    <string name="service_status_running_uptime">服务运行中 · 已 %1$d 分钟</string>
+    <string name="service_status_running_hint">后台常驻：关闭应用（从最近任务划掉）后仍会按时执行定时任务</string>
+    <string name="service_status_reclaimed">服务已被系统回收</string>
+    <string name="service_status_reclaimed_hint">保活心跳会在几分钟内自动拉起；若长期如此，请在系统里允许本应用「自启动 / 后台活动」并关闭省电限制</string>
     <string name="service_action_start">启动</string>
     <string name="service_action_stop">停止</string>
     <string name="service_meta_name_label">服务名称</string>
@@ -121,7 +124,7 @@
     <string name="notif_channel_reminder_name">定时任务提醒</string>
     <string name="notif_channel_reminder_desc">定时关机/灰度/断网任务执行提醒</string>
     <string name="notif_service_title">自动化控制运行中</string>
-    <string name="notif_service_text">正在调度定时关机、灰度、断网任务</string>
+    <string name="notif_service_text">后台常驻：关闭应用后仍会按时执行定时任务</string>
 
     <!-- 动作执行结果通知 -->
     <string name="notif_shutdown_title">定时关机</string>

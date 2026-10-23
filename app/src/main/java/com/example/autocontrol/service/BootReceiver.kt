@@ -8,7 +8,7 @@ import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.runBlocking
 
 /**
- * 开机/应用更新后重建所有定时任务。
+ * 开机/应用更新后重建所有定时任务，并重新拉起前台服务与保活心跳。
  */
 class BootReceiver : BroadcastReceiver() {
 
@@ -16,6 +16,8 @@ class BootReceiver : BroadcastReceiver() {
         val action = intent.action
         if (action == Intent.ACTION_BOOT_COMPLETED || action == Intent.ACTION_MY_PACKAGE_REPLACED) {
             reschedule(context)
+            // 开机后系统不会自动恢复前台服务，必须主动拉起；顺带续上心跳。
+            ServiceKeeper.ensureRunning(context)
         }
     }
 

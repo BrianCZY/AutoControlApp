@@ -55,6 +55,11 @@ object NotificationHelper {
             .setOngoing(true)
             .setCategory(NotificationCompat.CATEGORY_SERVICE)
             .setPriority(NotificationCompat.PRIORITY_LOW)
+            .setVisibility(NotificationCompat.VISIBILITY_PUBLIC)
+            .setShowWhen(false)
+            // Android 12+ 前台服务通知默认可能延迟约 10 秒才展示，
+            // 期间用户会误以为"服务没起来"。IMMEDIATE 让它立即出现。
+            .setForegroundServiceBehavior(NotificationCompat.FOREGROUND_SERVICE_IMMEDIATE)
             .build()
     }
 

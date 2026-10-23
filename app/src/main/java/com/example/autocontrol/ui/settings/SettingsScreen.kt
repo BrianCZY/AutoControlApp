@@ -231,8 +231,24 @@ fun SettingsScreen(
             item {
                 StatusCard(
                     title = stringResource(R.string.service_card_title),
-                    status = if (state.serviceRunning) stringResource(R.string.service_status_running) else stringResource(R.string.service_status_inactive),
-                    hint = if (state.serviceRunning) stringResource(R.string.service_status_running_hint) else stringResource(R.string.service_status_inactive_hint),
+                    status = when {
+                        state.serviceAlive -> {
+                            val minutes = state.serviceUptimeMinutes ?: 0
+                            if (minutes < 1) {
+                                stringResource(R.string.service_status_running)
+                            } else {
+                                stringResource(R.string.service_status_running_uptime, minutes)
+                            }
+                        }
+                        // 用户启用了保活、但进程里服务已不在：说明被系统回收，正在等心跳恢复
+                        state.serviceRunning -> stringResource(R.string.service_status_reclaimed)
+                        else -> stringResource(R.string.service_status_inactive)
+                    },
+                    hint = when {
+                        state.serviceAlive -> stringResource(R.string.service_status_running_hint)
+                        state.serviceRunning -> stringResource(R.string.service_status_reclaimed_hint)
+                        else -> stringResource(R.string.service_status_inactive_hint)
+                    },
                     actionLabel = if (state.serviceRunning) stringResource(R.string.service_action_stop) else stringResource(R.string.service_action_start),
                     onAction = viewModel::onToggleService,
                     meta = listOf(
