@@ -159,6 +159,23 @@ class SettingsViewModel(
     }
 
     /**
+     * 切换「从最近任务列表隐藏」。
+     *
+     * 写入后需要重新同步一次任务可见性，否则要等下次进入 App 才生效。
+     * 这里通过 [RecentsController.sync] 由 Activity 在 onResume 处理，
+     * 因为 AppTask 必须拿到具体的 Activity 实例。
+     */
+    fun setHideFromRecents(hidden: Boolean) {
+        viewModelScope.launch {
+            repository.setHideFromRecents(hidden)
+            _toast.tryEmit(
+                if (hidden) "已隐藏：最近任务列表中将看不到本应用，请从桌面图标进入"
+                else "已恢复显示：可在最近任务列表中看到本应用"
+            )
+        }
+    }
+
+    /**
      * 启停后台服务。
      *
      * 这里的"停止"会同时取消保活心跳并记下用户的意图，

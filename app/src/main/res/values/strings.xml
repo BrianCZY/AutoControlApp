@@ -38,6 +38,12 @@
 
     <!-- 灰度显示（颜色值 / 浓度） -->
     <string name="settings_grayscale_label">灰度显示</string>
+
+    <!-- 应用显示（最近任务） -->
+    <string name="settings_app_display_label">应用显示</string>
+    <string name="hide_from_recents_title">从最近任务中隐藏</string>
+    <string name="hide_from_recents_subtitle_on">已隐藏：最近任务列表看不到本应用，请从桌面图标进入</string>
+    <string name="hide_from_recents_subtitle_off">显示：可在最近任务列表中看到并切换回本应用</string>
     <string name="grayscale_color_title">灰罩颜色</string>
     <string name="grayscale_color_subtitle">该颜色以半透明方式叠加在屏幕上，实现去色效果</string>
     <string name="grayscale_color_dialog_title">选择灰罩颜色</string>
@@ -55,6 +61,7 @@
     <string name="perm_overlay_subtitle">在系统设置页上方悬浮操作步骤提示，首次开启无障碍时尤其有用</string>
     <string name="perm_battery_title">忽略电池优化</string>
     <string name="perm_battery_subtitle">允许应用在后台持续运行，不被系统休眠</string>
+    <string name="perm_battery_subtitle_hidden">已在白名单：应用不再出现在最近任务列表，需从桌面图标进入</string>
     <string name="perm_foreground_title">后台运行与自启动</string>
     <string name="perm_foreground_subtitle">在应用信息页开启自启动与后台活动，避免服务被系统清理</string>
     <string name="perm_accessibility_title">无障碍服务（屏幕灰度）</string>

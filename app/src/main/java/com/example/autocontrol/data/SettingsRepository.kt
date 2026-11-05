@@ -30,6 +30,7 @@ object PrefKeys {
     val NetworkEnabled = booleanPreferencesKey("network_enabled")
     val NetworkStart = stringPreferencesKey("network_start")
     val NetworkEnd = stringPreferencesKey("network_end")
+    val HideFromRecents = booleanPreferencesKey("hide_from_recents")
 }
 
 /**
@@ -54,6 +55,8 @@ class SettingsRepository(private val context: Context) {
             networkEnabled = prefs[PrefKeys.NetworkEnabled] ?: false,
             networkStart = prefs[PrefKeys.NetworkStart]?.toLocalTimeOrNull() ?: LocalTime.of(23, 0),
             networkEnd = prefs[PrefKeys.NetworkEnd]?.toLocalTimeOrNull() ?: LocalTime.of(7, 0),
+            // 默认隐藏：本应用为后台常驻型，不需要留在最近任务里
+            hideFromRecents = prefs[PrefKeys.HideFromRecents] ?: true,
         )
     }.stateIn(scope, SharingStarted.Eagerly, ControlState())
 
@@ -102,6 +105,11 @@ class SettingsRepository(private val context: Context) {
 
     suspend fun setNetworkEnd(time: LocalTime) {
         context.dataStore.edit { it[PrefKeys.NetworkEnd] = time.toHhmm() }
+    }
+
+    /** 是否从最近任务列表隐藏本应用 */
+    suspend fun setHideFromRecents(hidden: Boolean) {
+        context.dataStore.edit { it[PrefKeys.HideFromRecents] = hidden }
     }
 
     private fun LocalTime.toHhmm(): String =

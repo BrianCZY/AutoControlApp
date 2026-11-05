@@ -42,8 +42,14 @@
         android:theme="@style/Theme.AutoControlApp"
         tools:targetApi="34">
 
+        <!-- excludeFromRecents="true"：默认不出现在最近任务列表，这是最可靠的保底手段。
+             运行时再按设置页开关用 AppTask.setExcludeFromRecents() 覆盖：
+             开关关闭 → 设为 false 恢复显示；开关开启 → true。
+             单靠运行时 API 在部分 ROM（如部分华为/荣耀版本）对已存在任务不生效，
+             因此必须同时声明此静态属性。 -->
         <activity
             android:name=".MainActivity"
+            android:excludeFromRecents="true"
             android:exported="true"
             android:theme="@style/Theme.AutoControlApp">
             <intent-filter>

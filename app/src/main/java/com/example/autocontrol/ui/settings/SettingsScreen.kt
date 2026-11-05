@@ -1,5 +1,6 @@
 package com.example.autocontrol.ui.settings
 
+import android.app.Activity
 import android.widget.Toast
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -57,12 +58,14 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import com.example.autocontrol.R
 import com.example.autocontrol.data.ControlState
 import com.example.autocontrol.service.PermissionTarget
+import com.example.autocontrol.service.RecentsController
 import com.example.autocontrol.ui.components.InfoBanner
 import com.example.autocontrol.ui.components.InfoBannerTone
 import com.example.autocontrol.ui.components.PermissionRow
 import com.example.autocontrol.ui.components.PermissionStatus
 import com.example.autocontrol.ui.components.StatusCard
 import com.example.autocontrol.ui.components.TagChip
+import com.example.autocontrol.ui.components.TealSwitch
 import com.example.autocontrol.ui.home.LocalAppContext
 import com.example.autocontrol.ui.theme.BgCard
 import com.example.autocontrol.ui.theme.BgButtonDisabled
@@ -147,6 +150,12 @@ fun SettingsScreen(
                     alpha = settings.grayscaleAlpha,
                     onPickColor = { showColorPicker = true },
                     onAlphaChange = viewModel::setGrayscaleAlpha,
+                )
+            }
+            item {
+                AppDisplayGroup(
+                    hideFromRecents = settings.hideFromRecents,
+                    onToggle = viewModel::setHideFromRecents,
                 )
             }
             item {
@@ -402,6 +411,71 @@ private fun PermissionGroup(
         }
         Column(modifier = Modifier.padding(horizontal = 14.dp, vertical = 4.dp)) {
             content()
+        }
+    }
+}
+
+// ------- 应用显示（最近任务） -------
+
+/**
+ * 「应用显示」分组：控制是否从系统最近任务列表中隐藏。
+ *
+ * 本应用是后台常驻型工具，留在最近任务里既没意义，又容易被顺手划掉，
+ * 因此默认隐藏；但必须给一个能恢复的入口，否则用户找不到 App 会很困惑。
+ */
+@Composable
+private fun AppDisplayGroup(
+    hideFromRecents: Boolean,
+    onToggle: (Boolean) -> Unit,
+) {
+    val activity = LocalContext.current as? Activity
+    // 开关变化后立即同步任务可见性（设置页内不会触发 Activity 的 onResume）
+    LaunchedEffect(hideFromRecents) {
+        activity?.let { RecentsController.sync(it) }
+    }
+
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(20.dp))
+            .background(BgCard),
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(start = 18.dp, top = 14.dp, bottom = 4.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            TagChip(text = stringResource(R.string.settings_app_display_label))
+        }
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 18.dp, vertical = 14.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Column(Modifier.weight(1f)) {
+                Text(
+                    text = stringResource(R.string.hide_from_recents_title),
+                    style = MaterialTheme.typography.titleMedium,
+                    color = TextPrimary,
+                    fontWeight = FontWeight.SemiBold,
+                )
+                Text(
+                    text = stringResource(
+                        if (hideFromRecents) {
+                            R.string.hide_from_recents_subtitle_on
+                        } else {
+                            R.string.hide_from_recents_subtitle_off
+                        }
+                    ),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = TextSecondary,
+                    modifier = Modifier.padding(top = 2.dp),
+                )
+            }
+            Spacer(Modifier.width(12.dp))
+            TealSwitch(checked = hideFromRecents, onCheckedChange = onToggle)
         }
     }
 }

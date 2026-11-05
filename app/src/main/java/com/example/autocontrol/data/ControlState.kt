@@ -18,6 +18,13 @@ data class ControlState(
     val networkEnabled: Boolean = false,
     val networkStart: LocalTime = LocalTime.of(23, 0),
     val networkEnd: LocalTime = LocalTime.of(7, 0),
+    /**
+     * 是否从系统「最近任务」列表中隐藏本应用。
+     *
+     * 默认 true：本应用是后台常驻型工具，留在最近任务里既无意义又容易被误划掉。
+     * 隐藏后只能从桌面图标进入。
+     */
+    val hideFromRecents: Boolean = true,
 ) {
     companion object {
         const val DEFAULT_GRAYSCALE_COLOR = 0x808080
