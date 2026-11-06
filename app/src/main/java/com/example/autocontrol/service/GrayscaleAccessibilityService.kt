@@ -273,23 +273,63 @@ class GrayscaleAccessibilityService : AccessibilityService() {
         val view = FrameLayout(this).apply {
             setBackgroundColor(currentOverlayColor())
         }
-        val params = WindowManager.LayoutParams(
-            WindowManager.LayoutParams.MATCH_PARENT,
-            WindowManager.LayoutParams.MATCH_PARENT,
-            WindowManager.LayoutParams.TYPE_ACCESSIBILITY_OVERLAY,
-            WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE
-                or WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE
-                or WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN,
-            PixelFormat.TRANSLUCENT
-        ).apply {
-            gravity = Gravity.TOP or Gravity.START
-        }
         try {
-            wm.addView(view, params)
+            wm.addView(view, buildOverlayParams())
             overlayView = view
         } catch (_: Exception) {
             // 理论上无障碍浮窗不会失败；若失败仅移除，不影响其他功能
             removeOverlay()
+        }
+    }
+
+    /**
+     * 构造覆盖整块屏幕（含状态栏 / 导航栏 / 刘海）的窗口参数。
+     *
+     * 只写 MATCH_PARENT 是**不够**的，默认窗口会被系统栏"避开"：
+     * 结果就是顶部状态栏和底部导航栏留下两条未染色的白边。
+     * 要真正铺满需要同时满足以下条件：
+     *
+     * 1. `FLAG_LAYOUT_IN_SCREEN`：按整个屏幕布局，而不是按"可用区域"；
+     * 2. `FLAG_LAYOUT_NO_LIMITS`：允许超出屏幕边界，这是能盖住状态栏的关键；
+     * 3. `layoutInDisplayCutoutMode = ALWAYS/SHORT_EDGES`：延伸到刘海/挖孔区域，
+     *    否则异形屏顶部会残留一块未覆盖的"缺口"；
+     * 4. `setFitInsetsTypes(0)`：不避让任何系统栏 insets（API 30+ 若不设置，
+     *    窗口仍会被 insets 裁掉，前三条都白做）。
+     *
+     * 窗口类型保持 TYPE_ACCESSIBILITY_OVERLAY（层级 2032），
+     * 高于 TYPE_STATUS_BAR（2000）与 TYPE_NAVIGATION_BAR（2019），
+     * 因此无需额外提权即可盖在系统栏之上。
+     */
+    private fun buildOverlayParams(): WindowManager.LayoutParams {
+        val flags = WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or
+            WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE or
+            WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN or
+            WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS
+
+        return WindowManager.LayoutParams(
+            WindowManager.LayoutParams.MATCH_PARENT,
+            WindowManager.LayoutParams.MATCH_PARENT,
+            WindowManager.LayoutParams.TYPE_ACCESSIBILITY_OVERLAY,
+            flags,
+            PixelFormat.TRANSLUCENT,
+        ).apply {
+            gravity = Gravity.TOP or Gravity.START
+
+            // 3) 刘海 / 挖孔区域
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+                layoutInDisplayCutoutMode =
+                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+                        // ALWAYS：短边与长边都延伸进 cutout，异形屏可完整覆盖
+                        WindowManager.LayoutParams.LAYOUT_IN_DISPLAY_CUTOUT_MODE_ALWAYS
+                    } else {
+                        WindowManager.LayoutParams.LAYOUT_IN_DISPLAY_CUTOUT_MODE_SHORT_EDGES
+                    }
+            }
+
+            // 4) 不避让系统栏 insets（0 = WindowInsets.Type.none()）
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+                setFitInsetsTypes(0)
+            }
         }
     }
 
