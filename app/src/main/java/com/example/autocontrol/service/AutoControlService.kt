@@ -12,7 +12,9 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 
 /**
@@ -34,6 +36,15 @@ class AutoControlService : Service() {
         private const val ACTION_PREFIX = "com.example.autocontrol.action."
 
         /**
+         * 灰度监测轮询周期：30 秒。
+         *
+         * 30s 精度对「到点变灰」足够（用户几乎察觉不到延迟），
+         * 同时开销极小：只读内存里的 StateFlow 值 + 一次 Settings.Secure 查询 + 一次应用内广播。
+         * 再短没有意义（状态不会在 30s 内变化两次），再长则会明显感到"到点没变灰"。
+         */
+        private const val MONITOR_INTERVAL_MS = 30_000L
+
+        /**
          * 服务是否真的活着（进程内标志）。
          *
          * 为什么不用 SharedPreferences：进程被杀后偏好里的值仍然存在，会误报"运行中"。
@@ -52,13 +63,86 @@ class AutoControlService : Service() {
 
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
 
+    /** 灰度监测循环任务 */
+    private var monitorJob: Job? = null
+
+    /** 上一轮监测得出的「应显示」状态，仅用于减少无意义的重复广播 */
+    @Volatile
+    private var lastGrayscaleDesired: Boolean? = null
+
     override fun onCreate() {
         super.onCreate()
         alive = true
         startedAt = System.currentTimeMillis()
         NotificationHelper.ensureChannels(this)
         startForegroundCompat()
+        // 监测循环随服务一起起来：App 在前台还是后台都不影响它
+        startMonitor()
         Log.d(TAG, "服务已创建")
+    }
+
+    /**
+     * 启动灰度时段监测循环。
+     *
+     * 为什么必须有这一步：
+     * 只依赖 AlarmManager 的一次性精确闹钟是不够的 ——
+     * 闹钟可能因为 Doze、精确闹钟权限、ROM 限制、进程被冻结等原因**不送达或延迟送达**，
+     * 一旦漏掉，灰罩就永远不会在该时段出现（下一轮闹钟要等一整天）。
+     *
+     * 因此把「时段判定」变成一个常驻的轻量轮询：
+     * 每 [MONITOR_INTERVAL_MS] 读一次配置，算出当前该不该变灰，再校正灰罩。
+     * 这样即便闹钟没来，最多晚一个轮询周期就会自动纠正，且具备自愈能力
+     * （无障碍服务重连、灰罩被意外移除，下一轮都会恢复）。
+     *
+     * 闹钟与轮询是互补关系：
+     * - 闹钟负责「准点」触发（秒级精度）；
+     * - 轮询负责「兜底 + 自愈」（容忍延迟，但绝不漏）。
+     */
+    private fun startMonitor() {
+        if (monitorJob?.isActive == true) return
+        monitorJob = scope.launch {
+            // 配置一变（改时段、改开关、改颜色）就立刻校正，不必等下一个轮询周期
+            launch {
+                val app = application as? AutoControlApplication ?: return@launch
+                app.settingsRepository.state.collect {
+                    runCatching { applyGrayscaleNow() }
+                        .onFailure { e -> Log.e(TAG, "配置变更后校正失败", e) }
+                }
+            }
+            // 时间推进的兜底轮询：既负责准点外的校正，也负责灰罩丢失后的自愈
+            while (isActive) {
+                runCatching { applyGrayscaleNow() }
+                    .onFailure { Log.e(TAG, "灰度监测失败", it) }
+                delay(MONITOR_INTERVAL_MS)
+            }
+        }
+        Log.d(TAG, "灰度监测已启动，周期 ${MONITOR_INTERVAL_MS / 1000}s")
+    }
+
+    /**
+     * 按「当前时间 + 当前配置」把灰罩校正到正确状态。
+     *
+     * 幂等，且带自愈能力：不仅比对"期望值是否变化"，还比对"屏幕上是否真的有灰罩"。
+     * 只要两者不一致就重新下发一次，因此无障碍重连、窗口被系统清掉等情况
+     * 都能在下一个轮询周期内自动恢复，不需要用户手动干预。
+     */
+    private fun applyGrayscaleNow() {
+        val app = application as? AutoControlApplication ?: return
+        // state 是 StateFlow(Eagerly)，value 即最新配置，无需挂起
+        val state = app.settingsRepository.state.value
+        val desired = GrayscaleSchedule.shouldShow(state)
+        val actual = GrayscaleAccessibilityService.overlayShowing
+
+        if (desired == actual && lastGrayscaleDesired == desired) return
+
+        GrayscaleSchedule.apply(this, state)
+        lastGrayscaleDesired = desired
+        Log.d(
+            TAG,
+            "灰度校正：期望=${if (desired) "显示" else "隐藏"}，" +
+                "实际=${if (actual) "显示" else "隐藏"}" +
+                "（启用=${state.grayscaleEnabled}, 时段=${GrayscaleSchedule.describe(state)}）"
+        )
     }
 
     /**
@@ -89,8 +173,9 @@ class AutoControlService : Service() {
         val action = intent?.action
         when (action) {
             Scheduler.ACTION_SHUTDOWN -> handleShutdown()
-            Scheduler.ACTION_GRAYSCALE_ON -> handleGrayscale(true)
-            Scheduler.ACTION_GRAYSCALE_OFF -> handleGrayscale(false)
+            // 灰度不用 action 区分 on/off：闹钟可能迟到、也可能被跳过，
+            // 到点后按「此刻实际时间」重新判定才正确（例如设备休眠跨过了整个时段）。
+            Scheduler.ACTION_GRAYSCALE_ON, Scheduler.ACTION_GRAYSCALE_OFF -> handleGrayscaleAlarm()
             Scheduler.ACTION_NETWORK_OFF -> handleNetwork(false)
             Scheduler.ACTION_NETWORK_ON -> handleNetwork(true)
             else -> {
@@ -153,27 +238,38 @@ class AutoControlService : Service() {
         )
     }
 
-    private fun handleGrayscale(on: Boolean) {
-        if (on) {
-            if (GrayscaleAccessibilityService.isEnabled(this)) {
-                GrayscaleAccessibilityService.show(this)
-                notifyResult(
-                    title = getString(R.string.notif_grayscale_on_title),
-                    result = ActionExecutor.ActionResult(true, getString(R.string.action_grayscale_on_success))
-                )
-            } else {
-                notifyResult(
-                    title = getString(R.string.notif_grayscale_on_title),
-                    result = ActionExecutor.ActionResult(false, getString(R.string.accessibility_not_granted))
-                )
-            }
-        } else {
-            GrayscaleAccessibilityService.hide(this)
+    /**
+     * 灰度闹钟到点：按当前时间重新判定该显示还是隐藏。
+     *
+     * 不再直接信任 action 的 on/off 语义 —— 闹钟有可能延迟数分钟甚至被系统攒批延迟，
+     * 此时"开始时刻的闹钟"到点执行时可能已经走出时段，按时间重算才是正确的。
+     */
+    private fun handleGrayscaleAlarm() {
+        val app = application as? AutoControlApplication ?: return
+        val state = app.settingsRepository.state.value
+
+        if (!GrayscaleAccessibilityService.isEnabled(this)) {
             notifyResult(
-                title = getString(R.string.notif_grayscale_off_title),
-                result = ActionExecutor.ActionResult(true, getString(R.string.action_grayscale_off_success))
+                title = getString(R.string.notif_grayscale_on_title),
+                result = ActionExecutor.ActionResult(false, getString(R.string.accessibility_not_granted))
             )
+            return
         }
+
+        val shown = GrayscaleSchedule.apply(this, state)
+        lastGrayscaleDesired = shown
+        notifyResult(
+            title = getString(
+                if (shown) R.string.notif_grayscale_on_title else R.string.notif_grayscale_off_title
+            ),
+            result = ActionExecutor.ActionResult(
+                true,
+                getString(
+                    if (shown) R.string.action_grayscale_on_success
+                    else R.string.action_grayscale_off_success
+                )
+            )
+        )
     }
 
     private fun handleNetwork(on: Boolean) {
@@ -191,6 +287,8 @@ class AutoControlService : Service() {
     override fun onDestroy() {
         alive = false
         startedAt = 0L
+        monitorJob?.cancel()
+        monitorJob = null
         Log.d(TAG, "服务已销毁")
         super.onDestroy()
         scope.coroutineContext[Job]?.cancel()

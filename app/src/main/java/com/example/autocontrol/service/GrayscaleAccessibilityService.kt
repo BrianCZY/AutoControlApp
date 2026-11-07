@@ -87,6 +87,17 @@ class GrayscaleAccessibilityService : AccessibilityService() {
         const val EXTRA_STYLE_ALPHA = "style_alpha"
 
         /**
+         * 灰罩当前是否真的挂在屏幕上。
+         *
+         * 供 [AutoControlService] 的监测循环读取，用于「实际状态 vs 期望状态」比对，
+         * 从而实现自愈：若灰罩被意外移除（无障碍重连、窗口被系统清掉），
+         * 下一轮监测发现不一致就会重新挂上，不必等下一次时段切换。
+         */
+        @Volatile
+        var overlayShowing: Boolean = false
+            private set
+
+        /**
          * 无障碍服务是否已开启。
          *
          * 双重校验，避免被 ROM 的存储格式差异误导成「未开启」——
@@ -276,8 +287,11 @@ class GrayscaleAccessibilityService : AccessibilityService() {
         try {
             wm.addView(view, buildOverlayParams())
             overlayView = view
-        } catch (_: Exception) {
+            overlayShowing = true
+            Log.d(TAG, "灰罩已显示")
+        } catch (e: Exception) {
             // 理论上无障碍浮窗不会失败；若失败仅移除，不影响其他功能
+            Log.e(TAG, "灰罩添加失败", e)
             removeOverlay()
         }
     }
@@ -334,8 +348,11 @@ class GrayscaleAccessibilityService : AccessibilityService() {
     }
 
     private fun removeOverlay() {
-        overlayView?.let { windowManager?.removeView(it) }
+        overlayView?.let {
+            runCatching { windowManager?.removeView(it) }
+        }
         overlayView = null
+        overlayShowing = false
     }
 
     /** 按当前配置（颜色 + 浓度）算出灰罩的实际 ARGB */
