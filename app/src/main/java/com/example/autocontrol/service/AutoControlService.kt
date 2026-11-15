@@ -122,8 +122,8 @@ class AutoControlService : Service() {
     /**
      * 按「当前时间 + 当前配置」把灰罩校正到正确状态。
      *
-     * 幂等，且带自愈能力：不仅比对"期望值是否变化"，还比对"屏幕上是否真的有灰罩"。
-     * 只要两者不一致就重新下发一次，因此无障碍重连、窗口被系统清掉等情况
+     * 幂等，且带自愈能力：不仅比对"期望值是否变化"，还比对"屏幕上是否真的有遮罩"。
+     * 只要两者不一致就重新下发一次，因此悬浮窗被系统清掉、无障碍重连等情况
      * 都能在下一个轮询周期内自动恢复，不需要用户手动干预。
      */
     private fun applyGrayscaleNow() {
@@ -131,7 +131,7 @@ class AutoControlService : Service() {
         // state 是 StateFlow(Eagerly)，value 即最新配置，无需挂起
         val state = app.settingsRepository.state.value
         val desired = GrayscaleSchedule.shouldShow(state)
-        val actual = GrayscaleAccessibilityService.overlayShowing
+        val actual = GrayscaleSchedule.isShowing
 
         if (desired == actual && lastGrayscaleDesired == desired) return
 
@@ -141,7 +141,8 @@ class AutoControlService : Service() {
             TAG,
             "灰度校正：期望=${if (desired) "显示" else "隐藏"}，" +
                 "实际=${if (actual) "显示" else "隐藏"}" +
-                "（启用=${state.grayscaleEnabled}, 时段=${GrayscaleSchedule.describe(state)}）"
+                "（启用=${state.grayscaleEnabled}, 时段=${GrayscaleSchedule.describe(state)}," +
+                "悬浮窗=${OverlayManager.canDraw(this)}）"
         )
     }
 
@@ -248,10 +249,11 @@ class AutoControlService : Service() {
         val app = application as? AutoControlApplication ?: return
         val state = app.settingsRepository.state.value
 
-        if (!GrayscaleAccessibilityService.isEnabled(this)) {
+        // 两条通道都没有才报错：悬浮窗（首选）或无障碍（降级）
+        if (!GrayscaleSchedule.canRender(this)) {
             notifyResult(
                 title = getString(R.string.notif_grayscale_on_title),
-                result = ActionExecutor.ActionResult(false, getString(R.string.accessibility_not_granted))
+                result = ActionExecutor.ActionResult(false, getString(R.string.overlay_not_granted))
             )
             return
         }

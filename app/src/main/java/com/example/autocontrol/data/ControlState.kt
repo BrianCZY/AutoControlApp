@@ -32,6 +32,18 @@ data class ControlState(
 
         /** 浓度范围为「几乎透明 .. 较实」，两头都不给到 0/255，避免用户调到看不见或全屏挡死 */
         const val MIN_GRAYSCALE_ALPHA = 20
-        const val MAX_GRAYSCALE_ALPHA = 230
+
+        /**
+         * 浓度上限 199（≈0.78）。
+         *
+         * 不再取 230 的原因：悬浮窗通道用 **窗口 alpha** 表达浓度，
+         * 而 Android 12 的 `TouchOcclusionMode.USE_OPACITY` 在窗口 alpha > 0.8 时
+         * 会把该窗口判定为"遮挡层"，**拦截其下方应用的所有触摸**
+         * （防点击劫持机制，见 `OverlayManager.buildParams` 注释）。
+         *
+         * 上限压到 0.78 可保证整个滑块范围内触摸都能穿透。
+         * 此浓度在视觉上已接近全灰，不影响实际使用。
+         */
+        const val MAX_GRAYSCALE_ALPHA = 199
     }
 }

@@ -12,6 +12,7 @@ import com.example.autocontrol.data.PermissionManager
 import com.example.autocontrol.data.SettingsRepository
 import com.example.autocontrol.service.GrayscaleAccessibilityService
 import com.example.autocontrol.service.GrayscaleSchedule
+import com.example.autocontrol.service.OverlayManager
 import com.example.autocontrol.service.Scheduler
 import kotlinx.coroutines.channels.BufferOverflow
 import kotlinx.coroutines.flow.MutableSharedFlow
@@ -66,10 +67,10 @@ class HomeViewModel(
 
     fun toggleGrayscale(enabled: Boolean) {
         viewModelScope.launch {
-            // 缺少无障碍服务时不开灰度：置回关闭并引导用户去设置页完成授权
-            if (enabled && !GrayscaleAccessibilityService.isEnabled(application)) {
+            // 两条通道都没有才拦：悬浮窗权限（首选，授权一次长期有效）或无障碍服务
+            if (enabled && !GrayscaleSchedule.canRender(application)) {
                 repository.setGrayscaleEnabled(false)
-                _toast.tryEmit("请先在「设置」页开启本应用的「无障碍」服务，再开启灰度")
+                _toast.tryEmit("请先在「设置」页授予「显示在其他应用上层」权限，再开启灰度")
                 _openPermissionSettings.tryEmit(Unit)
                 reschedule()
                 return@launch
@@ -81,6 +82,7 @@ class HomeViewModel(
 
             if (!enabled) {
                 GrayscaleAccessibilityService.hide(application)
+                OverlayManager.hide(application)
                 _toast.tryEmit("已关闭屏幕灰度遮罩")
                 reschedule()
                 return@launch
@@ -93,10 +95,11 @@ class HomeViewModel(
                 current.grayscaleEnd,
             )
             if (inWindow) {
-                GrayscaleAccessibilityService.show(application)
+                GrayscaleSchedule.apply(application, current)
                 _toast.tryEmit("已开启屏幕灰度遮罩")
             } else {
                 GrayscaleAccessibilityService.hide(application)
+                OverlayManager.hide(application)
                 _toast.tryEmit("已启用灰度时段，将在 ${GrayscaleSchedule.describe(current)} 内自动变灰")
             }
             if (!permissionManager.isExactAlarmGranted()) {

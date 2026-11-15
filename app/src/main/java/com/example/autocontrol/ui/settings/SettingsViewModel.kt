@@ -13,6 +13,7 @@ import com.example.autocontrol.data.SettingsRepository
 import com.example.autocontrol.service.A11yDiagnostics
 import com.example.autocontrol.service.AutoControlService
 import com.example.autocontrol.service.GrayscaleAccessibilityService
+import com.example.autocontrol.service.GrayscaleSchedule
 import com.example.autocontrol.service.PermissionGuide
 import com.example.autocontrol.service.PermissionTarget
 import com.example.autocontrol.service.ServiceKeeper
@@ -138,10 +139,10 @@ class SettingsViewModel(
     fun setGrayscaleColor(rgb: Int) {
         viewModelScope.launch {
             repository.setGrayscaleColor(rgb)
-            GrayscaleAccessibilityService.refreshStyle(
+            // 两条通道一起刷新：悬浮窗通道与无障碍通道都可能正在显示
+            GrayscaleSchedule.refreshStyle(
                 application,
-                rgb and 0xFFFFFF,
-                repository.state.value.grayscaleAlpha,
+                repository.state.value.copy(grayscaleColor = rgb and 0xFFFFFF),
             )
         }
     }
@@ -150,10 +151,9 @@ class SettingsViewModel(
     fun setGrayscaleAlpha(alpha: Int) {
         viewModelScope.launch {
             repository.setGrayscaleAlpha(alpha)
-            GrayscaleAccessibilityService.refreshStyle(
+            GrayscaleSchedule.refreshStyle(
                 application,
-                repository.state.value.grayscaleColor,
-                alpha,
+                repository.state.value.copy(grayscaleAlpha = alpha),
             )
         }
     }

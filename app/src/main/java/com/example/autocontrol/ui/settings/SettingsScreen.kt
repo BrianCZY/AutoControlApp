@@ -162,6 +162,15 @@ fun SettingsScreen(
                 PermissionGroup(
                     label = stringResource(R.string.settings_core_label),
                 ) {
+                    // 灰度遮罩的首选通道：授权一次长期有效，不会被强停/覆盖安装撤销
+                    PermissionRow(
+                        icon = Icons.Outlined.Layers,
+                        title = stringResource(R.string.perm_overlay_title),
+                        subtitle = stringResource(R.string.perm_overlay_subtitle),
+                        status = state.overlayStatus,
+                        onClick = { guideTarget = PermissionTarget.Overlay },
+                    )
+                    Spacer(Modifier.height(1.dp).fillMaxWidth().background(Divider))
                     PermissionRow(
                         icon = Icons.Outlined.BatteryFull,
                         title = stringResource(R.string.perm_battery_title),
@@ -183,14 +192,6 @@ fun SettingsScreen(
                 PermissionGroup(
                     label = stringResource(R.string.settings_extra_label),
                 ) {
-                    PermissionRow(
-                        icon = Icons.Outlined.Layers,
-                        title = stringResource(R.string.perm_overlay_title),
-                        subtitle = stringResource(R.string.perm_overlay_subtitle),
-                        status = state.overlayStatus,
-                        onClick = { guideTarget = PermissionTarget.Overlay },
-                    )
-                    Spacer(Modifier.height(1.dp).fillMaxWidth().background(Divider))
                     PermissionRow(
                         icon = Icons.Outlined.Visibility,
                         title = stringResource(R.string.perm_accessibility_title),

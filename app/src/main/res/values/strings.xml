@@ -57,17 +57,17 @@
     <string name="action_confirm">确定</string>
     <string name="action_cancel">取消</string>
 
-    <string name="perm_overlay_title">悬浮窗（指引浮层）</string>
-    <string name="perm_overlay_subtitle">在系统设置页上方悬浮操作步骤提示，首次开启无障碍时尤其有用</string>
+    <string name="perm_overlay_title">显示在其他应用上层</string>
+    <string name="perm_overlay_subtitle">屏幕灰度遮罩所需：授权一次长期有效，强制停止或覆盖安装都不会失效</string>
     <string name="perm_battery_title">忽略电池优化</string>
     <string name="perm_battery_subtitle">允许应用在后台持续运行，不被系统休眠</string>
     <string name="perm_battery_subtitle_hidden">已在白名单：应用不再出现在最近任务列表，需从桌面图标进入</string>
     <string name="perm_foreground_title">后台运行与自启动</string>
     <string name="perm_foreground_subtitle">在应用信息页开启自启动与后台活动，避免服务被系统清理</string>
-    <string name="perm_accessibility_title">无障碍服务（屏幕灰度）</string>
-    <string name="perm_accessibility_subtitle">屏幕灰度遮罩所需，用于绘制可穿透点击的灰度层</string>
-    <string name="perm_accessibility_subtitle_off">屏幕灰度遮罩所需，用于绘制可穿透点击的灰度层</string>
-    <string name="perm_accessibility_subtitle_revoked">已被系统关闭（强制停止应用、覆盖安装或省电清理都会触发）。需重新开启，App 无法代为开启</string>
+    <string name="perm_accessibility_title">无障碍服务（备用通道，可选）</string>
+    <string name="perm_accessibility_subtitle">仅在未授予悬浮窗权限时作为降级方案。注意：强制停止或覆盖安装后系统会自动关闭它</string>
+    <string name="perm_accessibility_subtitle_off">未开启。正常情况不需要它——授权上面的「显示在其他应用上层」即可实现灰度</string>
+    <string name="perm_accessibility_subtitle_revoked">已被系统关闭（强制停止应用、覆盖安装或省电清理都会触发）。若已授权悬浮窗权限，可忽略此项</string>
     <string name="perm_exact_alarm_title">精确闹钟</string>
     <string name="perm_exact_alarm_subtitle">定时灰度/关机准点触发所需，缺失时可能延迟执行</string>
     <string name="perm_notification_title">通知权限</string>
@@ -148,6 +148,7 @@
     <string name="action_grayscale_on_success">已开启屏幕灰度遮罩</string>
     <string name="action_grayscale_off_success">已关闭屏幕灰度遮罩</string>
     <string name="accessibility_not_granted">灰度未生效：请先在系统设置开启本应用的“无障碍”服务，否则无法在其他应用上层绘制灰罩</string>
+    <string name="overlay_not_granted">灰度未生效：请先在「设置」页授予“显示在其他应用上层”权限（或开启无障碍服务作为备用通道）</string>
 
     <!-- 无障碍服务（灰度遮罩）说明，在系统无障碍设置页展示 -->
     <string name="accessibility_service_description">用于在指定时段将屏幕显示为灰度模式：通过一层半透明灰罩叠加在最上层，并且不影响你点击、操作屏幕上的其他内容和应用。本服务不收集任何信息。</string>
