@@ -115,11 +115,19 @@ object Scheduler {
         am.cancel(pi)
     }
 
+    /**
+     * 闹钟的 PendingIntent 指向 **广播接收器** 而非 Service。
+     *
+     * 关键原因：PendingIntent.getService 在进程已被杀掉时，需要在后台拉起前台服务，
+     * Android 12+ 会抛 ForegroundServiceStartNotAllowedException —— 到点就静默失联，
+     * 表现为"有时候生效有时候不生效"。
+     * 广播接收器是 manifest 静态注册的，进程不在也能被拉起，这条路径必然可达。
+     */
     private fun pendingIntent(context: Context, action: String, requestCode: Int): PendingIntent {
-        val intent = Intent(context, AutoControlService::class.java).apply {
+        val intent = Intent(context, AlarmActionReceiver::class.java).apply {
             this.action = action
         }
-        return PendingIntent.getService(
+        return PendingIntent.getBroadcast(
             context,
             requestCode,
             intent,

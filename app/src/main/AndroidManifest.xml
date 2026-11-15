@@ -71,10 +71,27 @@
                 android:value="定时关机/灰度/断网调度" />
         </service>
 
-        <!-- 服务心跳：每 15 分钟唤醒一次服务，防止被 ROM 杀进程后彻底失效 -->
+        <!-- 定时动作入口：闹钟直接投递到广播接收器（静态注册，进程不在也能拉起）。
+             不走 PendingIntent.getService —— 后台拉前台服务在 Android 12+ 会被拦。 -->
+        <receiver
+            android:name=".service.AlarmActionReceiver"
+            android:exported="false" />
+
+        <!-- 服务心跳：每 5 分钟唤醒一次服务，防止被 ROM 杀进程后彻底失效 -->
         <receiver
             android:name=".service.ServiceWatchdogReceiver"
             android:exported="false" />
+
+        <!-- 解锁时立即校正灰罩：用户点亮屏幕的第一眼就应该是对的。
+             ACTION_SCREEN_ON 自 Android 8 起不允许 manifest 静态注册，
+             但 ACTION_USER_PRESENT（解锁完成）仍可，用它做静态兜底。 -->
+        <receiver
+            android:name=".service.ScreenEventReceiver"
+            android:exported="false">
+            <intent-filter>
+                <action android:name="android.intent.action.USER_PRESENT" />
+            </intent-filter>
+        </receiver>
 
         <!-- 灰度遮罩服务：通过无障碍浮窗(TYPE_ACCESSIBILITY_OVERLAY)在其他应用上层绘制可穿透点击的灰罩。
              需在系统设置中开启本应用的无障碍服务后才会生效（App 内跳转，无需连接电脑）。 -->
