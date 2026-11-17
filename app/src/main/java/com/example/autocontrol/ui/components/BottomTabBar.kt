@@ -20,7 +20,9 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
+import com.example.autocontrol.ui.theme.AutoControlTheme
 import com.example.autocontrol.ui.theme.BgRoot
 import com.example.autocontrol.ui.theme.BrandTeal
 import com.example.autocontrol.ui.theme.Divider
@@ -108,5 +110,40 @@ private fun TabButton(
                 .clip(RoundedCornerShape(2.dp))
                 .background(if (selected) BrandTeal else Color.Transparent)
         )
+    }
+}
+
+// ======================= Compose 预览 =======================
+
+private val PreviewTabs = listOf(
+    TabItem("home", "首页", "🏠"),
+    TabItem("settings", "设置", "⚙️"),
+)
+
+@Preview(
+    name = "底部导航 · 首页选中",
+    group = "组件",
+    showBackground = true,
+    backgroundColor = 0xFF0B1220,
+    widthDp = 393,
+)
+@Composable
+private fun BottomTabBarPreview_HomeSelected() {
+    AutoControlTheme {
+        BottomTabBar(currentRoute = "home", tabs = PreviewTabs, onTabSelected = {})
+    }
+}
+
+@Preview(
+    name = "底部导航 · 设置选中",
+    group = "组件",
+    showBackground = true,
+    backgroundColor = 0xFF0B1220,
+    widthDp = 393,
+)
+@Composable
+private fun BottomTabBarPreview_SettingsSelected() {
+    AutoControlTheme {
+        BottomTabBar(currentRoute = "settings", tabs = PreviewTabs, onTabSelected = {})
     }
 }

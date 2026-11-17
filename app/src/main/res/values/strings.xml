@@ -19,7 +19,7 @@
     <string name="grayscale_summary_waiting">%1$s ~ %2$s · 未到时段</string>
     <string name="grayscale_time_range_label">灰度时间段</string>
     <string name="grayscale_to">至</string>
-    <string name="grayscale_tip">灰度通过无障碍服务叠加的半透明灰罩实现（需在「设置」页开启本应用的无障碍服务）。锁屏等个别界面可能覆盖不全；想立即关闭可在 App 内关闭开关。</string>
+    <string name="grayscale_tip">灰度通过「显示在其他应用上层」权限叠加半透明遮罩实现，授权一次长期有效；若该权限未授予，会退回到无障碍服务通道。锁屏等个别界面可能覆盖不全；想立即关闭可在 App 内关闭开关。</string>
 
     <string name="network_title">定时断网</string>
     <string name="network_subtitle">指定时段内自动关闭Wi-Fi和移动数据</string>

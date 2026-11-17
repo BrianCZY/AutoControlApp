@@ -46,6 +46,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
@@ -67,6 +68,7 @@ import com.example.autocontrol.ui.components.StatusCard
 import com.example.autocontrol.ui.components.TagChip
 import com.example.autocontrol.ui.components.TealSwitch
 import com.example.autocontrol.ui.home.LocalAppContext
+import com.example.autocontrol.ui.theme.AutoControlTheme
 import com.example.autocontrol.ui.theme.BgCard
 import com.example.autocontrol.ui.theme.BgButtonDisabled
 import com.example.autocontrol.ui.theme.BgCardElevated
@@ -76,6 +78,7 @@ import com.example.autocontrol.ui.theme.Divider
 import com.example.autocontrol.ui.theme.TextOnBrand
 import com.example.autocontrol.ui.theme.TextPrimary
 import com.example.autocontrol.ui.theme.TextSecondary
+
 
 @Composable
 fun SettingsScreen(
@@ -108,6 +111,61 @@ fun SettingsScreen(
         }
     }
 
+    SettingsContent(
+        state = state,
+        settings = settings,
+        contentPadding = contentPadding,
+        onToggleService = viewModel::onToggleService,
+        onPickColor = { showColorPicker = true },
+        onAlphaChange = viewModel::setGrayscaleAlpha,
+        onToggleHideFromRecents = viewModel::setHideFromRecents,
+        onPermissionClick = { guideTarget = it },
+    )
+
+    // 灰罩颜色选择
+    if (showColorPicker) {
+        GrayscaleColorDialog(
+            current = settings.grayscaleColor,
+            onConfirm = { rgb ->
+                viewModel.setGrayscaleColor(rgb)
+                showColorPicker = false
+            },
+            onDismiss = { showColorPicker = false },
+        )
+    }
+
+    // 权限指引浮窗：点击授权时先说明“到系统设置里点什么”，确认后再跳转
+    guideTarget?.let { target ->
+        PermissionGuideDialog(
+            title = viewModel.guideTitle(target),
+            steps = viewModel.guideSteps(target),
+            onConfirm = {
+                viewModel.onRequest(target)
+                guideTarget = null
+            },
+            onDismiss = { guideTarget = null },
+        )
+    }
+}
+
+/**
+ * 设置页的**无状态**内容层。
+ *
+ * 从 [SettingsScreen] 拆出，供 `@Preview` 与 UI 测试直接渲染：
+ * 预览环境里没有 ViewModel、也没有真实系统权限，只能靠注入的 [SettingsUiState]。
+ * 所有动作通过回调向外抛，自身不持有可变状态（除滑块拖动这类纯视觉临时量）。
+ */
+@Composable
+fun SettingsContent(
+    state: SettingsUiState,
+    settings: ControlState,
+    contentPadding: PaddingValues = PaddingValues(0.dp),
+    onToggleService: () -> Unit = {},
+    onPickColor: () -> Unit = {},
+    onAlphaChange: (Int) -> Unit = {},
+    onToggleHideFromRecents: (Boolean) -> Unit = {},
+    onPermissionClick: (PermissionTarget) -> Unit = {},
+) {
     Box(
         modifier = Modifier
             .fillMaxSize()
@@ -148,14 +206,14 @@ fun SettingsScreen(
                 GrayscaleDisplayGroup(
                     color = settings.grayscaleColor,
                     alpha = settings.grayscaleAlpha,
-                    onPickColor = { showColorPicker = true },
-                    onAlphaChange = viewModel::setGrayscaleAlpha,
+                    onPickColor = onPickColor,
+                    onAlphaChange = onAlphaChange,
                 )
             }
             item {
                 AppDisplayGroup(
                     hideFromRecents = settings.hideFromRecents,
-                    onToggle = viewModel::setHideFromRecents,
+                    onToggle = onToggleHideFromRecents,
                 )
             }
             item {
@@ -168,7 +226,7 @@ fun SettingsScreen(
                         title = stringResource(R.string.perm_overlay_title),
                         subtitle = stringResource(R.string.perm_overlay_subtitle),
                         status = state.overlayStatus,
-                        onClick = { guideTarget = PermissionTarget.Overlay },
+                        onClick = { onPermissionClick(PermissionTarget.Overlay) },
                     )
                     Spacer(Modifier.height(1.dp).fillMaxWidth().background(Divider))
                     PermissionRow(
@@ -176,7 +234,7 @@ fun SettingsScreen(
                         title = stringResource(R.string.perm_battery_title),
                         subtitle = stringResource(R.string.perm_battery_subtitle),
                         status = state.batteryStatus,
-                        onClick = { guideTarget = PermissionTarget.Battery },
+                        onClick = { onPermissionClick(PermissionTarget.Battery) },
                     )
                     Spacer(Modifier.height(1.dp).fillMaxWidth().background(Divider))
                     PermissionRow(
@@ -184,7 +242,7 @@ fun SettingsScreen(
                         title = stringResource(R.string.perm_foreground_title),
                         subtitle = stringResource(R.string.perm_foreground_subtitle),
                         status = state.foregroundServiceStatus,
-                        onClick = { guideTarget = PermissionTarget.ForegroundService },
+                        onClick = { onPermissionClick(PermissionTarget.ForegroundService) },
                     )
                 }
             }
@@ -205,7 +263,7 @@ fun SettingsScreen(
                                 stringResource(R.string.perm_accessibility_subtitle_off)
                         },
                         status = state.accessibilityStatus,
-                        onClick = { guideTarget = PermissionTarget.Accessibility },
+                        onClick = { onPermissionClick(PermissionTarget.Accessibility) },
                     )
                     // 被系统关闭时附上最近一次生命周期记录，便于确认是解绑还是崩溃
                     val revokedHint = state.accessibilityHint
@@ -226,7 +284,7 @@ fun SettingsScreen(
                         title = stringResource(R.string.perm_exact_alarm_title),
                         subtitle = stringResource(R.string.perm_exact_alarm_subtitle),
                         status = state.exactAlarmStatus,
-                        onClick = { guideTarget = PermissionTarget.ExactAlarm },
+                        onClick = { onPermissionClick(PermissionTarget.ExactAlarm) },
                     )
                     Spacer(Modifier.height(1.dp).fillMaxWidth().background(Divider))
                     PermissionRow(
@@ -234,7 +292,7 @@ fun SettingsScreen(
                         title = stringResource(R.string.perm_notification_title),
                         subtitle = stringResource(R.string.perm_notification_subtitle),
                         status = state.notificationStatus,
-                        onClick = { guideTarget = PermissionTarget.Notification },
+                        onClick = { onPermissionClick(PermissionTarget.Notification) },
                     )
                 }
             }
@@ -260,7 +318,7 @@ fun SettingsScreen(
                         else -> stringResource(R.string.service_status_inactive_hint)
                     },
                     actionLabel = if (state.serviceRunning) stringResource(R.string.service_action_stop) else stringResource(R.string.service_action_start),
-                    onAction = viewModel::onToggleService,
+                    onAction = onToggleService,
                     meta = listOf(
                         stringResource(R.string.service_meta_name_label) to stringResource(R.string.service_meta_name_value),
                         stringResource(R.string.service_meta_api_label) to stringResource(R.string.service_meta_api_value),
@@ -270,31 +328,6 @@ fun SettingsScreen(
             }
             item { Spacer(Modifier.height(20.dp)) }
         }
-    }
-
-    // 灰罩颜色选择
-    if (showColorPicker) {
-        GrayscaleColorDialog(
-            current = settings.grayscaleColor,
-            onConfirm = { rgb ->
-                viewModel.setGrayscaleColor(rgb)
-                showColorPicker = false
-            },
-            onDismiss = { showColorPicker = false },
-        )
-    }
-
-    // 权限指引浮窗：点击授权时先说明“到系统设置里点什么”，确认后再跳转
-    guideTarget?.let { target ->
-        PermissionGuideDialog(
-            title = viewModel.guideTitle(target),
-            steps = viewModel.guideSteps(target),
-            onConfirm = {
-                viewModel.onRequest(target)
-                guideTarget = null
-            },
-            onDismiss = { guideTarget = null },
-        )
     }
 }
 
@@ -838,4 +871,102 @@ private fun percentToAlpha(percent: Int): Int {
     val min = ControlState.MIN_GRAYSCALE_ALPHA
     val max = ControlState.MAX_GRAYSCALE_ALPHA
     return (min + (max - min) * (percent.coerceIn(0, 100) / 100f)).toInt()
+}
+
+// ======================= Compose 预览 =======================
+//
+// 预览渲染无状态的 [SettingsContent]，权限状态通过 [SettingsUiState] 注入，
+// 因此不需要真实系统权限、也不依赖 ViewModel / DataStore。
+
+/** 权限齐备 + 服务健康：不应出现顶部红色告警条 */
+private fun previewAllGrantedState() = SettingsUiState(
+    batteryStatus = PermissionStatus.Granted,
+    foregroundServiceStatus = PermissionStatus.Granted,
+    accessibilityStatus = PermissionStatus.Granted,
+    notificationStatus = PermissionStatus.Granted,
+    exactAlarmStatus = PermissionStatus.Granted,
+    overlayStatus = PermissionStatus.Granted,
+    serviceRunning = true,
+    serviceAlive = true,
+    serviceUptimeMinutes = 128,
+)
+
+/** 首次进入、尚未授权任何权限 */
+private fun previewFreshState() = SettingsUiState(
+    batteryStatus = PermissionStatus.NotGranted,
+    foregroundServiceStatus = PermissionStatus.Granted,
+    accessibilityStatus = PermissionStatus.NotGranted,
+    notificationStatus = PermissionStatus.NotGranted,
+    exactAlarmStatus = PermissionStatus.NotGranted,
+    overlayStatus = PermissionStatus.NotGranted,
+    serviceRunning = false,
+    serviceAlive = false,
+)
+
+/** 无障碍曾被系统撤销：强停 / 覆盖安装后的典型状态 */
+private fun previewRevokedState() = SettingsUiState(
+    batteryStatus = PermissionStatus.Granted,
+    foregroundServiceStatus = PermissionStatus.Granted,
+    accessibilityStatus = PermissionStatus.NotGranted,
+    notificationStatus = PermissionStatus.Granted,
+    exactAlarmStatus = PermissionStatus.Granted,
+    overlayStatus = PermissionStatus.Granted,
+    serviceRunning = true,
+    serviceAlive = false,
+    accessibilityWasRevoked = true,
+    accessibilityHint = "上次连接 11-15 21:40 · 已解绑（应用被强制停止）",
+)
+
+/** 演示用配置：低浓度、非默认灰，便于看清色块与滑块位置 */
+private fun previewSettings() = ControlState(
+    grayscaleColor = 0x9AA3B0,
+    grayscaleAlpha = 90,
+)
+
+@Preview(
+    name = "设置 · 全部已授权",
+    group = "设置页",
+    showBackground = true,
+    backgroundColor = 0xFF0B1220,
+    device = "spec:width=393dp,height=1600dp,dpi=440",
+)
+@Composable
+private fun SettingsPreview_AllGranted() {
+    AutoControlTheme {
+        SettingsContent(state = previewAllGrantedState(), settings = ControlState())
+    }
+}
+
+/** 权限缺失：顶部出现告警条，各权限行按钮显示「授权」 */
+@Preview(
+    name = "设置 · 权限缺失",
+    group = "设置页",
+    showBackground = true,
+    backgroundColor = 0xFF0B1220,
+    device = "spec:width=393dp,height=1600dp,dpi=440",
+)
+@Composable
+private fun SettingsPreview_PermissionsMissing() {
+    AutoControlTheme {
+        SettingsContent(state = previewFreshState(), settings = previewSettings())
+    }
+}
+
+/**
+ * 无障碍被系统撤销——这一屏最关键：
+ * 副标题需解释"强制停止或覆盖安装后系统会撤掉授权"，下方追加最近一次生命周期记录。
+ * 该状态真机难以复现，靠预览随时可查。
+ */
+@Preview(
+    name = "设置 · 无障碍被撤销",
+    group = "设置页",
+    showBackground = true,
+    backgroundColor = 0xFF0B1220,
+    device = "spec:width=393dp,height=1600dp,dpi=440",
+)
+@Composable
+private fun SettingsPreview_AccessibilityRevoked() {
+    AutoControlTheme {
+        SettingsContent(state = previewRevokedState(), settings = ControlState())
+    }
 }

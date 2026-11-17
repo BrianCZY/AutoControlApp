@@ -42,6 +42,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import android.widget.Toast
 import androidx.lifecycle.Lifecycle
@@ -56,6 +57,7 @@ import com.example.autocontrol.ui.components.ControlCard
 import com.example.autocontrol.ui.components.ControlStatusRow
 import com.example.autocontrol.ui.components.TealSwitch
 import com.example.autocontrol.ui.components.TimeRangePickerField
+import com.example.autocontrol.ui.theme.AutoControlTheme
 import com.example.autocontrol.ui.theme.BgCard
 import com.example.autocontrol.ui.theme.BgRoot
 import com.example.autocontrol.ui.theme.Divider
@@ -115,6 +117,61 @@ fun HomeScreen(
         }
     }
 
+    HomeContent(
+        state = state,
+        now = now,
+        contentPadding = contentPadding,
+        onToggleShutdown = viewModel::toggleShutdown,
+        onToggleGrayscale = viewModel::toggleGrayscale,
+        onToggleNetwork = viewModel::toggleNetwork,
+        onPickShutdownTime = { pickerTarget = TimePickerTarget.Shutdown(state.shutdownTime) },
+        onPickGrayscaleStart = { pickerTarget = TimePickerTarget.Start(state.grayscaleStart) },
+        onPickGrayscaleEnd = { pickerTarget = TimePickerTarget.End(state.grayscaleEnd) },
+        onPickNetworkStart = { pickerTarget = TimePickerTarget.NetworkStart(state.networkStart) },
+        onPickNetworkEnd = { pickerTarget = TimePickerTarget.NetworkEnd(state.networkEnd) },
+    )
+
+    pickerTarget?.let { target ->
+        TimePickerDialog(
+            initial = target.initial,
+            onConfirm = { picked ->
+                when (target) {
+                    is TimePickerTarget.Shutdown -> viewModel.setShutdownTime(picked)
+                    is TimePickerTarget.Start -> viewModel.setGrayscaleStart(picked)
+                    is TimePickerTarget.End -> viewModel.setGrayscaleEnd(picked)
+                    is TimePickerTarget.NetworkStart -> viewModel.setNetworkStart(picked)
+                    is TimePickerTarget.NetworkEnd -> viewModel.setNetworkEnd(picked)
+                }
+                pickerTarget = null
+            },
+            onDismiss = { pickerTarget = null },
+        )
+    }
+}
+
+/**
+ * 首页的**无状态**内容层。
+ *
+ * 从 [HomeScreen] 中拆分出来，目的有两个：
+ * 1. 让 `@Preview` 能直接渲染整屏（预览环境里没有 ViewModel / DataStore）；
+ * 2. 布局与状态解耦，便于测试不同的 [ControlState] 组合。
+ *
+ * 所有交互都通过回调向外抛，自身不持有任何可变状态。
+ */
+@Composable
+fun HomeContent(
+    state: ControlState,
+    now: LocalTime,
+    contentPadding: PaddingValues = PaddingValues(0.dp),
+    onToggleShutdown: (Boolean) -> Unit = {},
+    onToggleGrayscale: (Boolean) -> Unit = {},
+    onToggleNetwork: (Boolean) -> Unit = {},
+    onPickShutdownTime: () -> Unit = {},
+    onPickGrayscaleStart: () -> Unit = {},
+    onPickGrayscaleEnd: () -> Unit = {},
+    onPickNetworkStart: () -> Unit = {},
+    onPickNetworkEnd: () -> Unit = {},
+) {
     Box(
         modifier = Modifier
             .fillMaxSize()
@@ -134,56 +191,29 @@ fun HomeScreen(
             item {
                 ShutdownCard(
                     state = state,
-                    onToggle = viewModel::toggleShutdown,
-                    onPickTime = {
-                        pickerTarget = TimePickerTarget.Shutdown(state.shutdownTime)
-                    },
+                    onToggle = onToggleShutdown,
+                    onPickTime = onPickShutdownTime,
                 )
             }
             item {
                 GrayscaleCard(
                     state = state,
                     now = now,
-                    onToggle = viewModel::toggleGrayscale,
-                    onPickStart = {
-                        pickerTarget = TimePickerTarget.Start(state.grayscaleStart)
-                    },
-                    onPickEnd = {
-                        pickerTarget = TimePickerTarget.End(state.grayscaleEnd)
-                    },
+                    onToggle = onToggleGrayscale,
+                    onPickStart = onPickGrayscaleStart,
+                    onPickEnd = onPickGrayscaleEnd,
                 )
             }
             item {
                 NetworkCard(
                     state = state,
-                    onToggle = viewModel::toggleNetwork,
-                    onPickStart = {
-                        pickerTarget = TimePickerTarget.NetworkStart(state.networkStart)
-                    },
-                    onPickEnd = {
-                        pickerTarget = TimePickerTarget.NetworkEnd(state.networkEnd)
-                    },
+                    onToggle = onToggleNetwork,
+                    onPickStart = onPickNetworkStart,
+                    onPickEnd = onPickNetworkEnd,
                 )
             }
             item { Spacer(Modifier.height(20.dp)) }
         }
-    }
-
-    pickerTarget?.let { target ->
-        TimePickerDialog(
-            initial = target.initial,
-            onConfirm = { picked ->
-                when (target) {
-                    is TimePickerTarget.Shutdown -> viewModel.setShutdownTime(picked)
-                    is TimePickerTarget.Start -> viewModel.setGrayscaleStart(picked)
-                    is TimePickerTarget.End -> viewModel.setGrayscaleEnd(picked)
-                    is TimePickerTarget.NetworkStart -> viewModel.setNetworkStart(picked)
-                    is TimePickerTarget.NetworkEnd -> viewModel.setNetworkEnd(picked)
-                }
-                pickerTarget = null
-            },
-            onDismiss = { pickerTarget = null },
-        )
     }
 }
 
@@ -489,3 +519,90 @@ private fun TimePickerDialog(
  * 灰度所需的权限（无障碍服务 / 精确闹钟）统一在「设置」页授权与展示，
  * 首页只保留开关与时段配置；缺权限时开关会置回关闭并把用户带到设置页。
  */
+
+// ======================= Compose 预览 =======================
+//
+// 预览直接渲染无状态的 [HomeContent]，因此不需要 ViewModel / DataStore / 系统权限。
+// 在 Android Studio 中打开本文件，切到 Split / Design 即可看到 4 种状态。
+
+/** 夜间灰度时段（默认配置形态） */
+private val PreviewNightState = ControlState()
+
+/** 全部功能开启：布局最长，用于检查提示行换行与整体高度 */
+private fun previewAllEnabledState() = ControlState(
+    shutdownEnabled = true,
+    shutdownTime = LocalTime.of(23, 30),
+    grayscaleEnabled = true,
+    grayscaleStart = LocalTime.of(22, 0),
+    grayscaleEnd = LocalTime.of(7, 0),
+    networkEnabled = true,
+    networkStart = LocalTime.of(23, 0),
+    networkEnd = LocalTime.of(7, 0),
+)
+
+/** 全部关闭：三张卡片折叠为「未启用」，检查空状态视觉重量 */
+private fun previewAllDisabledState() = ControlState(
+    shutdownEnabled = false,
+    grayscaleEnabled = false,
+    networkEnabled = false,
+)
+
+/** 最常见的实际使用状态：只开灰度 */
+@Preview(
+    name = "首页 · 仅灰度开启",
+    group = "首页",
+    showBackground = true,
+    backgroundColor = 0xFF0B1220,
+    device = "spec:width=393dp,height=851dp,dpi=440",
+)
+@Composable
+private fun HomePreview_GrayscaleOnly() {
+    AutoControlTheme {
+        HomeContent(state = PreviewNightState, now = LocalTime.of(23, 0))
+    }
+}
+
+/** 灰度已启用但当前不在时段内（白天）：摘要应显示「未到时段」 */
+@Preview(
+    name = "首页 · 灰度未到时段",
+    group = "首页",
+    showBackground = true,
+    backgroundColor = 0xFF0B1220,
+    device = "spec:width=393dp,height=851dp,dpi=440",
+)
+@Composable
+private fun HomePreview_GrayscaleWaiting() {
+    AutoControlTheme {
+        HomeContent(state = PreviewNightState, now = LocalTime.of(14, 0))
+    }
+}
+
+/** 全部开启：卡片全部展开，高度放大以便一屏看全 */
+@Preview(
+    name = "首页 · 全部开启",
+    group = "首页",
+    showBackground = true,
+    backgroundColor = 0xFF0B1220,
+    device = "spec:width=393dp,height=1200dp,dpi=440",
+)
+@Composable
+private fun HomePreview_AllEnabled() {
+    AutoControlTheme {
+        HomeContent(state = previewAllEnabledState(), now = LocalTime.of(23, 10))
+    }
+}
+
+/** 全部关闭 */
+@Preview(
+    name = "首页 · 全部关闭",
+    group = "首页",
+    showBackground = true,
+    backgroundColor = 0xFF0B1220,
+    device = "spec:width=393dp,height=851dp,dpi=440",
+)
+@Composable
+private fun HomePreview_AllDisabled() {
+    AutoControlTheme {
+        HomeContent(state = previewAllDisabledState(), now = LocalTime.of(14, 0))
+    }
+}
