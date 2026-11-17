@@ -296,36 +296,7 @@ fun SettingsContent(
                     )
                 }
             }
-            item {
-                StatusCard(
-                    title = stringResource(R.string.service_card_title),
-                    status = when {
-                        state.serviceAlive -> {
-                            val minutes = state.serviceUptimeMinutes ?: 0
-                            if (minutes < 1) {
-                                stringResource(R.string.service_status_running)
-                            } else {
-                                stringResource(R.string.service_status_running_uptime, minutes)
-                            }
-                        }
-                        // 用户启用了保活、但进程里服务已不在：说明被系统回收，正在等心跳恢复
-                        state.serviceRunning -> stringResource(R.string.service_status_reclaimed)
-                        else -> stringResource(R.string.service_status_inactive)
-                    },
-                    hint = when {
-                        state.serviceAlive -> stringResource(R.string.service_status_running_hint)
-                        state.serviceRunning -> stringResource(R.string.service_status_reclaimed_hint)
-                        else -> stringResource(R.string.service_status_inactive_hint)
-                    },
-                    actionLabel = if (state.serviceRunning) stringResource(R.string.service_action_stop) else stringResource(R.string.service_action_start),
-                    onAction = onToggleService,
-                    meta = listOf(
-                        stringResource(R.string.service_meta_name_label) to stringResource(R.string.service_meta_name_value),
-                        stringResource(R.string.service_meta_api_label) to stringResource(R.string.service_meta_api_value),
-                        stringResource(R.string.service_meta_strategy_label) to stringResource(R.string.service_meta_strategy_value),
-                    ),
-                )
-            }
+
             item { Spacer(Modifier.height(20.dp)) }
         }
     }

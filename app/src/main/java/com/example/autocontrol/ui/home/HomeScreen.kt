@@ -188,13 +188,13 @@ fun HomeContent(
             item { TitleBlock() }
             item { Spacer(Modifier.height(6.dp)) }
 
-            item {
+           /* item {
                 ShutdownCard(
                     state = state,
                     onToggle = onToggleShutdown,
                     onPickTime = onPickShutdownTime,
                 )
-            }
+            }*/
             item {
                 GrayscaleCard(
                     state = state,
@@ -204,14 +204,14 @@ fun HomeContent(
                     onPickEnd = onPickGrayscaleEnd,
                 )
             }
-            item {
+        /*    item {
                 NetworkCard(
                     state = state,
                     onToggle = onToggleNetwork,
                     onPickStart = onPickNetworkStart,
                     onPickEnd = onPickNetworkEnd,
                 )
-            }
+            }*/
             item { Spacer(Modifier.height(20.dp)) }
         }
     }
