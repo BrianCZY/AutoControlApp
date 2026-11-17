@@ -14,7 +14,7 @@
     <string name="grayscale_title">时段屏幕变灰</string>
     <string name="grayscale_subtitle">指定时段内屏幕显示为灰度模式</string>
     <string name="grayscale_label">启用灰度时段</string>
-    <string name="grayscale_time_summary">%1$s ~ %2$s 屏幕变灰</string>
+    <string name="grayscale_summary_disabled">%1$s ~ %2$s · 已关闭</string>
     <string name="grayscale_summary_active">%1$s ~ %2$s · 生效中</string>
     <string name="grayscale_summary_waiting">%1$s ~ %2$s · 未到时段</string>
     <string name="grayscale_time_range_label">灰度时间段</string>

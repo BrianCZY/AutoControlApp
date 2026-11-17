@@ -289,39 +289,43 @@ private fun GrayscaleCard(
     ) {
         ControlStatusRow(
             label = stringResource(R.string.grayscale_label),
-            status = if (state.grayscaleEnabled) {
-                stringResource(
-                    if (inWindow) R.string.grayscale_summary_active else R.string.grayscale_summary_waiting,
+            status = when {
+                !state.grayscaleEnabled -> stringResource(
+                    R.string.grayscale_summary_disabled,
                     state.grayscaleStart.format(TimeFormatter),
                     state.grayscaleEnd.format(TimeFormatter),
                 )
-            } else {
-                stringResource(
-                    R.string.grayscale_time_summary,
+                inWindow -> stringResource(
+                    R.string.grayscale_summary_active,
+                    state.grayscaleStart.format(TimeFormatter),
+                    state.grayscaleEnd.format(TimeFormatter),
+                )
+                else -> stringResource(
+                    R.string.grayscale_summary_waiting,
                     state.grayscaleStart.format(TimeFormatter),
                     state.grayscaleEnd.format(TimeFormatter),
                 )
             },
             trailing = { TealSwitch(checked = state.grayscaleEnabled, onCheckedChange = onToggle) },
         )
-        if (state.grayscaleEnabled) {
-            Spacer(Modifier.height(16.dp))
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(1.dp)
-                    .background(Divider)
-            )
-            Spacer(Modifier.height(14.dp))
-            TimeRangePickerField(
-                start = state.grayscaleStart,
-                end = state.grayscaleEnd,
-                onPickStart = onPickStart,
-                onPickEnd = onPickEnd,
-            )
-            Spacer(Modifier.height(10.dp))
-            TipRow(text = stringResource(R.string.grayscale_tip))
-        }
+        // 时段编辑始终可用：开关只控制「是否执行该策略」，不影响「怎么设置策略」。
+        // 之前的做法是关闭时隐藏选择器，导致用户想先设好时段再开启时无处可点。
+        Spacer(Modifier.height(16.dp))
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(1.dp)
+                .background(Divider)
+        )
+        Spacer(Modifier.height(14.dp))
+        TimeRangePickerField(
+            start = state.grayscaleStart,
+            end = state.grayscaleEnd,
+            onPickStart = onPickStart,
+            onPickEnd = onPickEnd,
+        )
+        Spacer(Modifier.height(10.dp))
+        TipRow(text = stringResource(R.string.grayscale_tip))
     }
 }
 
@@ -592,13 +596,13 @@ private fun HomePreview_AllEnabled() {
     }
 }
 
-/** 全部关闭 */
+/** 全部关闭：灰度卡仍展开（时段可编辑），关机与断网折叠，检查空状态视觉重量 */
 @Preview(
     name = "首页 · 全部关闭",
     group = "首页",
     showBackground = true,
     backgroundColor = 0xFF0B1220,
-    device = "spec:width=393dp,height=851dp,dpi=440",
+    device = "spec:width=393dp,height=950dp,dpi=440",
 )
 @Composable
 private fun HomePreview_AllDisabled() {
