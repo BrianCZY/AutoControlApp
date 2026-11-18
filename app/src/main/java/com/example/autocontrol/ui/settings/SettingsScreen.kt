@@ -605,7 +605,10 @@ private fun GrayscaleDisplayGroup(
                     Text(
                         text = stringResource(
                             R.string.grayscale_alpha_value,
-                            shownPercent.toInt(),
+                            // 显示**真实不透明度**而不是滑块位置：
+                            // 滑块 100% 处对应 alpha=199，即不透明度仅 78%。
+                            // 若直接回显滑块位置，用户会以为设了 100% 却看不到 100% 的效果。
+                            (previewAlpha * 100 / 255),
                         ),
                         style = MaterialTheme.typography.bodyMedium,
                         color = BrandTeal,
