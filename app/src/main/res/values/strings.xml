@@ -49,6 +49,11 @@
     <string name="grayscale_color_dialog_title">选择灰罩颜色</string>
     <string name="grayscale_color_hex_label">自定义色值（#RRGGBB）</string>
     <string name="grayscale_color_invalid">请输入 #RRGGBB 格式，例如 #808080</string>
+    <string name="color_picker_hue">色相</string>
+    <string name="color_picker_palette_gray">中性灰阶</string>
+    <string name="color_picker_palette_tinted">常用色调</string>
+    <string name="color_picker_palette_hue">标准色板</string>
+    <string name="color_picker_current">当前颜色</string>
     <string name="grayscale_alpha_title">遮罩浓度</string>
     <string name="grayscale_alpha_subtitle">越大去色越强、屏幕越暗；调小可保留更多细节</string>
     <string name="grayscale_alpha_value">%1$d%%</string>

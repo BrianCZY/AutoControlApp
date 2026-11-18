@@ -2,23 +2,30 @@ package com.example.autocontrol.ui.settings
 
 import android.app.Activity
 import android.widget.Toast
+import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.detectDragGestures
+import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.Alarm
 import androidx.compose.material.icons.outlined.BatteryFull
@@ -42,15 +49,24 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.tooling.preview.Preview
+import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
+import kotlin.math.abs
+import kotlin.math.roundToInt
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -686,20 +702,33 @@ private fun GrayscaleColorDialog(
     onConfirm: (Int) -> Unit,
     onDismiss: () -> Unit,
 ) {
-    // 预设以中性灰为主（真灰度），另附两种微暖/微冷，避免只能千篇一律
-    val presets = listOf(
-        0x9E9E9E to "浅灰",
-        0x808080 to "标准灰",
-        0x616161 to "深灰",
-        0x424242 to "暗夜灰",
-        0x8C8378 to "暖灰",
-        0x78828C to "冷灰",
-    )
-    var selected by remember(current) { mutableStateOf(current) }
-    var hexInput by remember(current) {
-        mutableStateOf(toHexColor(current))
-    }
+    // ---- HSV 作为唯一真源 ----
+    // 不直接用 RGB 存状态的原因：灰色（饱和度=0）的色相反向计算时无定义，
+    // 若每次都从 RGB 反解，用户一选纯灰、色相条就会跳回红色。
+    // 这里把 hue 单独保留：当选择的颜色无彩色时，只更新饱和度与明度。
+    val initial = remember(current) { rgbToHsv(current) }
+    var hue by remember(current) { mutableStateOf(initial.h) }
+    var sat by remember(current) { mutableStateOf(initial.s) }
+    var brightness by remember(current) { mutableStateOf(initial.v) }
+
+    val selected = hsvToRgb(hue, sat, brightness)
+    var hexInput by remember(current) { mutableStateOf(toHexColor(current)) }
     var error by remember(current) { mutableStateOf(false) }
+
+    /** 从 HSV 同步色值文本（拖滑块时调用） */
+    fun syncHexFromHsv() {
+        val hex = toHexColor(hsvToRgb(hue, sat, brightness))
+        if (hex != hexInput) hexInput = hex
+    }
+
+    /** 从色值反解 HSV（输入框 / 点色板时调用） */
+    fun applyRgb(rgb: Int) {
+        val hsv = rgbToHsv(rgb)
+        // 只有带彩色时才改写色相，纯灰保留当前色相，避免色相条乱跳
+        if (hsv.s > 0.004f) hue = hsv.h
+        sat = hsv.s
+        brightness = hsv.v
+    }
 
     Dialog(
         onDismissRequest = onDismiss,
@@ -708,70 +737,112 @@ private fun GrayscaleColorDialog(
         Column(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(horizontal = 24.dp)
+                .padding(horizontal = 20.dp)
                 .clip(RoundedCornerShape(22.dp))
                 .background(BgCardElevated)
-                .padding(horizontal = 20.dp, vertical = 18.dp),
+                .heightIn(max = 640.dp)
+                .verticalScroll(rememberScrollState())
+                .padding(horizontal = 18.dp, vertical = 16.dp),
         ) {
-            Text(
-                text = stringResource(R.string.grayscale_color_dialog_title),
-                style = MaterialTheme.typography.titleMedium,
-                color = TextPrimary,
-                fontWeight = FontWeight.SemiBold,
-            )
-            Spacer(Modifier.height(14.dp))
-
-            // 预设色块网格（每行 3 个）
-            presets.chunked(3).forEach { rowItems ->
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(10.dp),
-                ) {
-                    rowItems.forEach { (rgb, name) ->
-                        val isSelected = rgb == selected
-                        Column(
-                            modifier = Modifier
-                                .weight(1f)
-                                .clip(RoundedCornerShape(12.dp))
-                                .background(if (isSelected) BgCard else Color.Transparent)
-                                .border(
-                                    width = if (isSelected) 2.dp else 1.dp,
-                                    color = if (isSelected) BrandTeal else Divider,
-                                    shape = RoundedCornerShape(12.dp),
-                                )
-                                .clickable {
-                                    selected = rgb
-                                    hexInput = toHexColor(rgb)
-                                    error = false
-                                }
-                                .padding(vertical = 10.dp),
-                            horizontalAlignment = Alignment.CenterHorizontally,
-                        ) {
-                            Box(
-                                modifier = Modifier
-                                    .size(30.dp)
-                                    .clip(RoundedCornerShape(8.dp))
-                                    .background(Color(0xFF000000.toInt() or rgb))
-                            )
-                            Spacer(Modifier.height(6.dp))
-                            Text(
-                                text = name,
-                                style = MaterialTheme.typography.bodySmall,
-                                color = if (isSelected) TextPrimary else TextSecondary,
-                            )
-                        }
-                    }
-                }
-                Spacer(Modifier.height(10.dp))
+            // 标题 + 当前颜色预览
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(
+                    text = stringResource(R.string.grayscale_color_dialog_title),
+                    style = MaterialTheme.typography.titleMedium,
+                    color = TextPrimary,
+                    fontWeight = FontWeight.SemiBold,
+                    modifier = Modifier.weight(1f),
+                )
+                Box(
+                    modifier = Modifier
+                        .size(34.dp)
+                        .clip(RoundedCornerShape(9.dp))
+                        .background(Color(0xFF000000.toInt() or selected))
+                        .border(1.dp, Divider, RoundedCornerShape(9.dp)),
+                )
+                Spacer(Modifier.width(10.dp))
+                Text(
+                    text = toHexColor(selected),
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = BrandTeal,
+                    fontWeight = FontWeight.SemiBold,
+                )
             }
 
+            Spacer(Modifier.height(14.dp))
+
+            // 饱和度（横）× 明度（纵）面板
+            SaturationValuePanel(
+                hue = hue,
+                sat = sat,
+                brightness = brightness,
+                onChange = { s, v ->
+                    sat = s
+                    brightness = v
+                    syncHexFromHsv()
+                },
+            )
+
+            Spacer(Modifier.height(12.dp))
+
+            // 色相条
+            HueSlider(
+                hue = hue,
+                onChange = { h ->
+                    hue = h
+                    syncHexFromHsv()
+                },
+            )
+
+            // ---- 预设色板 ----
+            Spacer(Modifier.height(16.dp))
+            PaletteLabel(stringResource(R.string.color_picker_palette_gray))
+            Spacer(Modifier.height(8.dp))
+            SwatchGrid(
+                colors = GrayPalette,
+                selected = selected,
+                onPick = { rgb ->
+                    applyRgb(rgb)
+                    hexInput = toHexColor(rgb)
+                    error = false
+                },
+            )
+
+            Spacer(Modifier.height(14.dp))
+            PaletteLabel(stringResource(R.string.color_picker_palette_tinted))
+            Spacer(Modifier.height(8.dp))
+            SwatchGrid(
+                colors = TintedPalette,
+                selected = selected,
+                onPick = { rgb ->
+                    applyRgb(rgb)
+                    hexInput = toHexColor(rgb)
+                    error = false
+                },
+            )
+
+            Spacer(Modifier.height(14.dp))
+            PaletteLabel(stringResource(R.string.color_picker_palette_hue))
+            Spacer(Modifier.height(8.dp))
+            SwatchGrid(
+                colors = StandardPalette,
+                selected = selected,
+                onPick = { rgb ->
+                    applyRgb(rgb)
+                    hexInput = toHexColor(rgb)
+                    error = false
+                },
+            )
+
+            // ---- 手动输入色值 ----
+            Spacer(Modifier.height(16.dp))
             OutlinedTextField(
                 value = hexInput,
                 onValueChange = { input ->
                     hexInput = input
                     val parsed = parseHexColor(input)
                     if (parsed != null) {
-                        selected = parsed
+                        applyRgb(parsed)
                         error = false
                     } else {
                         error = true
@@ -814,6 +885,254 @@ private fun GrayscaleColorDialog(
             }
         }
     }
+}
+
+// ---------------- 取色器子组件 ----------------
+
+/** 中性灰阶：灰度遮罩的主要用途，从近白到近黑 */
+private val GrayPalette = listOf(
+    0xF5F5F5, 0xD9D9D9, 0xBDBDBD, 0x9E9E9E,
+    0x808080, 0x616161, 0x424242, 0x212121,
+)
+
+/** 常用偏色灰：带极轻微冷暖，视觉上仍是灰但有氛围 */
+private val TintedPalette = listOf(
+    0x8C8378, 0x78828C, 0x7C8C78, 0x8C7C84,
+    0xB0A48C, 0x8C9AA3, 0xA3928C, 0x7A7A85,
+)
+
+/** 标准色板：八种高辨识度色相，供需要明显色调时使用 */
+private val StandardPalette = listOf(
+    0xE24B4A, 0xEF9F27, 0xFAC775, 0x639922,
+    0x1D9E75, 0x378ADD, 0x7F77DD, 0xD4537E,
+)
+
+@Composable
+private fun PaletteLabel(text: String) {
+    Text(
+        text = text,
+        style = MaterialTheme.typography.bodySmall,
+        color = TextSecondary,
+    )
+}
+
+/**
+ * 色板网格：等分一行，正方形色块。
+ *
+ * 之所以用 weight + aspectRatio 而不是固定尺寸：
+ * 对话框宽度随屏幕变化，固定 dp 会在窄屏溢出、宽屏留白。
+ */
+@Composable
+private fun SwatchGrid(
+    colors: List<Int>,
+    selected: Int,
+    onPick: (Int) -> Unit,
+) {
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+    ) {
+        colors.forEach { rgb ->
+            val pure = rgb and 0xFFFFFF
+            val isSelected = pure == (selected and 0xFFFFFF)
+            Box(
+                modifier = Modifier
+                    .weight(1f)
+                    .aspectRatio(1f)
+                    .clip(RoundedCornerShape(9.dp))
+                    .background(Color(0xFF000000.toInt() or pure))
+                    .border(
+                        width = if (isSelected) 2.5.dp else 1.dp,
+                        color = if (isSelected) BrandTeal else Divider,
+                        shape = RoundedCornerShape(9.dp),
+                    )
+                    .clickable { onPick(pure) },
+            )
+        }
+    }
+}
+
+/**
+ * 饱和度（横轴 0..1）× 明度（纵轴 1..0）选择面板。
+ *
+ * 绘制方式：先铺「白 → 纯色相」的横向渐变，再叠一层「透明 → 黑」的纵向渐变，
+ * 两层的乘积正好等价于 HSV 的 S/V 平面。这是各家取色器的通用做法，
+ * 比逐像素绘制便宜得多。
+ */
+@Composable
+private fun SaturationValuePanel(
+    hue: Float,
+    sat: Float,
+    brightness: Float,
+    onChange: (Float, Float) -> Unit,
+) {
+    var panel by remember { mutableStateOf(IntSize.Zero) }
+    val density = LocalDensity.current
+
+    fun handle(pos: Offset) {
+        if (panel.width <= 0 || panel.height <= 0) return
+        onChange(
+            (pos.x / panel.width).coerceIn(0f, 1f),
+            (1f - pos.y / panel.height).coerceIn(0f, 1f),
+        )
+    }
+
+    Canvas(
+        modifier = Modifier
+            .fillMaxWidth()
+            .height(150.dp)
+            .clip(RoundedCornerShape(12.dp))
+            .border(1.dp, Divider, RoundedCornerShape(12.dp))
+            .onSizeChanged { panel = it }
+            .pointerInput(Unit) { detectTapGestures { handle(it) } }
+            .pointerInput(Unit) {
+                detectDragGestures(
+                    onDragStart = { handle(it) },
+                    onDrag = { change, _ ->
+                        change.consume()
+                        handle(change.position)
+                    },
+                )
+            },
+    ) {
+        drawRect(
+            Brush.horizontalGradient(
+                listOf(Color.White, Color.hsv(hue, 1f, 1f)),
+            )
+        )
+        drawRect(
+            Brush.verticalGradient(
+                listOf(Color.Transparent, Color.Black),
+            )
+        )
+
+        // 指示器：外圈半透明黑 + 内圈白环，深浅底色下都能看清
+        val cx = sat * size.width
+        val cy = (1f - brightness) * size.height
+        val outer = with(density) { 10.dp.toPx() }
+        val inner = with(density) { 8.dp.toPx() }
+        drawCircle(
+            color = Color.Black.copy(alpha = 0.35f),
+            radius = outer,
+            center = Offset(cx, cy),
+            style = Stroke(width = with(density) { 3.dp.toPx() }),
+        )
+        drawCircle(
+            color = Color.White,
+            radius = inner,
+            center = Offset(cx, cy),
+            style = Stroke(width = with(density) { 2.dp.toPx() }),
+        )
+    }
+}
+
+/**
+ * 色相条：0..360 线性映射到宽度。
+ *
+ * 渐变端点用 0/60/120/.../360 七个色相，
+ * 首尾都是红（0° 与 360° 同色），保证两端视觉连续。
+ */
+@Composable
+private fun HueSlider(
+    hue: Float,
+    onChange: (Float) -> Unit,
+) {
+    var panel by remember { mutableStateOf(IntSize.Zero) }
+    val density = LocalDensity.current
+
+    fun handle(pos: Offset) {
+        if (panel.width <= 0) return
+        onChange((pos.x / panel.width).coerceIn(0f, 1f) * 360f)
+    }
+
+    Canvas(
+        modifier = Modifier
+            .fillMaxWidth()
+            .height(24.dp)
+            .clip(RoundedCornerShape(12.dp))
+            .onSizeChanged { panel = it }
+            .pointerInput(Unit) { detectTapGestures { handle(it) } }
+            .pointerInput(Unit) {
+                detectDragGestures(
+                    onDragStart = { handle(it) },
+                    onDrag = { change, _ ->
+                        change.consume()
+                        handle(change.position)
+                    },
+                )
+            },
+    ) {
+        val stops = listOf(0f, 60f, 120f, 180f, 240f, 300f, 360f)
+            .map { Color.hsv(it % 360f, 1f, 1f) }
+        drawRect(Brush.horizontalGradient(stops))
+
+        val r = with(density) { 10.dp.toPx() }
+        val cx = ((hue / 360f) * size.width).coerceIn(r, size.width - r)
+        val cy = size.height / 2f
+        // 白色圆环 + 内填当前纯色相，便于判断拖动位置
+        drawCircle(
+            color = Color.White,
+            radius = r,
+            center = Offset(cx, cy),
+            style = Stroke(width = with(density) { 3.dp.toPx() }),
+        )
+        drawCircle(
+            color = Color.hsv(hue, 1f, 1f),
+            radius = r - with(density) { 4.dp.toPx() },
+            center = Offset(cx, cy),
+        )
+    }
+}
+
+// ---------------- HSV / RGB 转换 ----------------
+
+/** HSV 三元组：色相 0..360，饱和度与明度 0..1 */
+private data class Hsv(val h: Float, val s: Float, val v: Float)
+
+/**
+ * RGB(0xRRGGBB) → HSV。
+ *
+ * 注意：灰度（delta=0）时色相在数学上无定义，此处返回 0；
+ * 调用方必须自行决定是否采用（见 [applyRgb] 的处理）。
+ */
+private fun rgbToHsv(rgb: Int): Hsv {
+    val r = ((rgb shr 16) and 0xFF) / 255f
+    val g = ((rgb shr 8) and 0xFF) / 255f
+    val b = (rgb and 0xFF) / 255f
+    val max = maxOf(r, g, b)
+    val min = minOf(r, g, b)
+    val delta = max - min
+
+    val h = if (delta == 0f) {
+        0f
+    } else {
+        val raw = when (max) {
+            r -> ((g - b) / delta) % 6f
+            g -> ((b - r) / delta) + 2f
+            else -> ((r - g) / delta) + 4f
+        }
+        (raw * 60f + 360f) % 360f
+    }
+    val s = if (max == 0f) 0f else delta / max
+    return Hsv(h, s, max)
+}
+
+/** HSV → RGB(0xRRGGBB) */
+private fun hsvToRgb(h: Float, s: Float, v: Float): Int {
+    val c = v * s
+    val hh = ((h % 360f) + 360f) % 360f / 60f
+    val x = c * (1f - abs(hh % 2f - 1f))
+    val m = v - c
+    val (r1, g1, b1) = when (hh.toInt()) {
+        0 -> Triple(c, x, 0f)
+        1 -> Triple(x, c, 0f)
+        2 -> Triple(0f, c, x)
+        3 -> Triple(0f, x, c)
+        4 -> Triple(x, 0f, c)
+        else -> Triple(c, 0f, x)
+    }
+    fun to8(f: Float): Int = ((f + m) * 255f).roundToInt().coerceIn(0, 255)
+    return (to8(r1) shl 16) or (to8(g1) shl 8) or to8(b1)
 }
 
 /** 0xRRGGBB → "#RRGGBB" */
@@ -939,5 +1258,27 @@ private fun SettingsPreview_PermissionsMissing() {
 private fun SettingsPreview_AccessibilityRevoked() {
     AutoControlTheme {
         SettingsContent(state = previewRevokedState(), settings = ControlState())
+    }
+}
+
+/**
+ * 取色器对话框预览。
+ *
+ * 重点检查：
+ * 1. SV 面板与色相条在深色主题下的对比度是否足够；
+ * 2. 三组色板能否一行排下（8 列等分，窄屏不溢出）；
+ * 3. 内容总高度是否需要滚动（heightIn(640.dp) + verticalScroll）。
+ */
+@Preview(
+    name = "设置 · 取色器",
+    group = "设置页",
+    showBackground = true,
+    backgroundColor = 0xFF0B1220,
+    device = "spec:width=393dp,height=851dp,dpi=440",
+)
+@Composable
+private fun GrayscaleColorDialogPreview() {
+    AutoControlTheme {
+        GrayscaleColorDialog(current = 0x808080, onConfirm = {}, onDismiss = {})
     }
 }
